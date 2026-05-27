@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.routes import router
 
-app = FastAPI(title="Hexor API", version="0.1.0")
+app = FastAPI(title="Hexor API", version="0.2.0")
 
 app.add_middleware(
     CORSMiddleware,
