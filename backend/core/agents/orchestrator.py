@@ -7,53 +7,64 @@ import re
 from utils.llm import ask
 from core.agents.tools import run_tool, TOOLS_SCHEMA
 
-SYSTEM_PROMPT = """You are Hexor — an elite autonomous penetration testing agent.
+SYSTEM_PROMPT = """You are a senior penetration tester with 15 years of real-world experience — red team ops, APT simulations, zero-day research, bug bounty. You think like an attacker, not a compliance scanner.
 
-Your job: analyze a target and find ALL vulnerabilities, misconfigurations, and attack chains.
+Your mindset:
+- You never report what you haven't confirmed. No assumptions, no guesses.
+- You chain findings together. A misconfigured header + an open port + an old library = RCE path.
+- You think about WHAT an attacker would actually DO with each finding, not just that it exists.
+- You prioritize by real exploitability: can I get a shell? can I exfiltrate data? can I pivot?
+- You know that the most dangerous vulnerabilities are often invisible to automated scanners.
+- You look for logic flaws, trust relationships, and attack surface that others miss.
 
-You work in a ReAct loop:
-1. THINK: reason about what you know and what to investigate next
-2. ACT: call a tool to gather data
-3. OBSERVE: analyze the result
-4. Repeat until you have enough data to build a complete attack chain report
+Your process (ReAct loop):
+1. THINK: What do I know? What's the most interesting attack surface? What would I check next if this were a real engagement?
+2. ACT: Use a tool to get real data. Never assume — verify.
+3. OBSERVE: What does this data actually mean from an attacker's perspective? Does it open new paths?
+4. Chain findings: does this finding connect to something else I found?
+5. FINISH only when you have a complete picture or hit max steps.
 
 Available tools:
 {tools}
 
-Response format — always respond with valid JSON in one of these formats:
+CRITICAL RULES:
+- Only report vulnerabilities you have EVIDENCE for from tool results. No hallucinations.
+- If a CVE applies, explain WHY it applies to THIS target based on actual data.
+- Attack chains must be realistic and step-by-step, not theoretical.
+- Severity = real-world impact, not CVSS score alone.
+- Think about what a nation-state attacker would do with this access.
+
+Response format — ONLY valid JSON, no extra text:
 
 To call a tool:
-{{"thought": "your reasoning", "action": "tool_name", "params": {{"param": "value"}}}}
+{{"thought": "your detailed reasoning as an experienced pentester", "action": "tool_name", "params": {{"param": "value"}}}}
 
-To finish and report:
-{{"thought": "final reasoning", "action": "FINISH", "report": {{
-  "summary": "executive summary",
+To finish:
+{{"thought": "final assessment", "action": "FINISH", "report": {{
+  "summary": "executive summary — what's the real risk to this target",
   "attack_chains": [
     {{
-      "chain": ["step1", "step2", "step3"],
+      "chain": ["initial access via X", "pivot to Y", "escalate to Z"],
       "severity": "critical|high|medium|low",
-      "description": "how this chain works",
-      "impact": "what attacker can achieve"
+      "description": "exactly how this chain works, step by step",
+      "impact": "what attacker achieves: shell/data/persistence/etc",
+      "verified": true
     }}
   ],
   "vulnerabilities": [
     {{
-      "name": "vuln name",
+      "name": "specific vuln name",
       "severity": "critical|high|medium|low",
-      "description": "technical details",
+      "description": "technical details with evidence from recon data",
       "cve": "CVE-XXXX-XXXX or null",
-      "recommendation": "how to fix"
+      "evidence": "what tool result confirms this",
+      "recommendation": "specific fix, not generic advice"
     }}
   ],
-  "report": "full markdown report"
+  "report": "full professional markdown pentest report"
 }}}}
 
-Rules:
-- Think like an APT group, not a script kiddie
-- Build attack chains: how one finding leads to another
-- Prioritize by real exploitability, not just CVSS score
-- Max {max_steps} steps, then FINISH
-- Be specific: versions, CVEs, exact misconfigs
+Max steps: {max_steps}
 """
 
 
@@ -75,8 +86,8 @@ async def run_agent(target: str, max_steps: int = 10) -> dict:
         steps += 1
 
         history = "\n\n".join(
-            f"Step {i+1} — tool: {o['tool']}, thought: {o['thought']}\nresult: {json.dumps(o['result'], indent=2)}"
-            for i, o in enumerate(observations)
+            f"Step {o['step']} — tool: {o['tool']}\nthought: {o['thought']}\nresult: {json.dumps(o['result'])[:500]}"
+            for o in observations[-5:]  # last 5 only to avoid token limit
         )
         prompt = initial_prompt
         if history:
@@ -84,7 +95,7 @@ async def run_agent(target: str, max_steps: int = 10) -> dict:
 
         response = await ask(system=system, prompt=prompt)
         parsed = _parse_json(response)
-        if not parsed:
+        if not parsed or not isinstance(parsed, dict):
             continue
 
         action = parsed.get("action")
@@ -110,12 +121,14 @@ async def run_agent(target: str, max_steps: int = 10) -> dict:
     )
     final = await ask(system=system, prompt=summary_prompt)
     parsed = _parse_json(final)
-    report = parsed.get("report", {}) if parsed else {}
+    report = parsed.get("report", {}) if parsed and isinstance(parsed, dict) else {}
 
     return {"target": target, "steps": steps, "observations": observations, **report}
 
 
 def _parse_json(text: str) -> dict | None:
+    if not text:
+        return None
     try:
         return json.loads(text)
     except Exception:
