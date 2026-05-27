@@ -1,69 +1,46 @@
-# ⚡ Hexor
+# Hexor
 
-AI-powered penetration testing assistant. Point it at a target — get a full vulnerability report in seconds.
+AI-powered penetration testing platform. Multi-agent harness with real tool integration.
 
-## Stack
+## Architecture
 
-- **Backend** — Python, FastAPI, OpenRouter API (LLM)
-- **Frontend** — React, Axios, TailwindCSS
+5-stage multi-agent harness:
+1. **Recon** — Attack surface mapping (DNS, WHOIS, HTTP, subdomains)
+2. **Hunt** — 8 parallel hunter agents (injection, XSS, auth, config, CORS, network, info, CVE)
+3. **Validate** — Adversarial review: independent agent disproves false findings
+4. **Chain Builder** — Constructs APT-level attack chains
+5. **Reporter** — Professional markdown pentest report in Russian
 
-## Structure
+## Integrated Tools
 
-```
-hexor/
-├── backend/
-│   ├── main.py           # FastAPI app, port 8000
-│   ├── api/routes.py     # POST /api/scan, GET /api/health
-│   ├── utils/llm.py      # OpenRouter client (multi-model fallback)
-│   ├── core/agents/      # recon, analyzer, reporter agents
-│   └── requirements.txt
-└── frontend/
-    ├── src/
-    │   ├── App.js
-    │   ├── components/   # ScanForm, Results
-    │   └── services/     # api.js (axios)
-    └── package.json
-```
+nmap, nuclei, ffuf, sqlmap, subfinder, testssl.sh, whatweb, NVD API, crt.sh
 
 ## Setup
 
-### 1. Backend
-
 ```bash
+# Backend
 cd backend
-python -m venv venv
-source venv/bin/activate
+python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
+cp .env.example .env  # edit with your API keys
+python main.py         # port 8000
 
-# Create .env
-echo "OPENROUTER_API_KEY=your_key_here" > .env
-
-python main.py
-```
-
-Get a free API key at [openrouter.ai](https://openrouter.ai)
-
-### 2. Frontend
-
-```bash
+# Frontend
 cd frontend
-npm install
-npm start
+npm install && npm start  # port 3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000)
+## API
 
-## How it works
-
-1. Enter a domain or IP
-2. Hexor fetches HTTP headers from the target
-3. Sends data to LLM (via OpenRouter, free models)
-4. Returns structured report: vulnerabilities with severity, description, recommendations
+- `POST /api/scan` — Start a scan
+- `WebSocket /api/ws/scan` — Live progress streaming
+- `GET /api/health` — Health check
 
 ## Roadmap
 
-- [ ] DNS / WHOIS / SSL recon
-- [ ] Multi-step agents (recon → analyze → report)
-- [ ] Auth + scan history (PostgreSQL)
-- [ ] User dashboard
-- [ ] Subscription tiers (Free / Pro / Enterprise)
+- [ ] Sandbox environment for safe PoC execution
+- [ ] Variant analysis (Big Sleep style)
+- [ ] Source code audit mode (Mythos style)
+- [ ] Custom fine-tuned model
+- [ ] Auth + PostgreSQL scan history
+- [ ] Team dashboard + subscription tiers
