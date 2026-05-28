@@ -27,23 +27,30 @@ class DatasetBuilder:
         print("=" * 60)
 
         # 1. NVD CVE data
-        print("\n[1/3] Fetching CVE data from NVD...")
+        print("\n[1/5] Fetching CVE data from NVD...")
         cves = await self.fetch_cves()
         print(f"  -> {len(cves)} CVEs collected")
 
-        # 2. HackerOne hacktivity
-        print("\n[2/3] Fetching HackerOne hacktivity...")
-        h1 = await self.fetch_hackerone()
-        print(f"  -> {len(h1)} reports collected")
-
-        # 3. Exploit-DB
-        print("\n[3/3] Fetching Exploit-DB entries...")
+        # 2. Exploit-DB
+        print("\n[2/5] Fetching Exploit-DB entries...")
         exploits = await self.fetch_exploitdb()
         print(f"  -> {len(exploits)} exploits collected")
 
+        # 3. MITRE ATT&CK
+        print("\n[3/5] Fetching MITRE ATT&CK...")
+        from data.scripts.fetch_mitre import fetch_mitre, build_mitre_samples
+        mitre_techniques = await fetch_mitre()
+        mitre_samples = build_mitre_samples(mitre_techniques)
+        print(f"  -> {len(mitre_samples)} MITRE samples built")
+
+        # 4. OWASP Top 10 knowledge
+        print("\n[4/5] Building OWASP knowledge samples...")
+        owasp_samples = self._build_owasp_samples()
+        print(f"  -> {len(owasp_samples)} OWASP samples built")
+
         # Build training dataset
         print("\nBuilding training dataset...")
-        dataset = self.build_training_data(cves, h1, exploits)
+        dataset = self.build_training_data(cves, exploits, mitre_samples, owasp_samples)
         self.save_dataset(dataset)
 
         print(f"\nDone! {len(dataset)} training samples saved to {PROCESSED}")
@@ -204,7 +211,7 @@ class DatasetBuilder:
 
     # ── Training Dataset Builder ──────────────────────────────
 
-    def build_training_data(self, cves: list, h1: list, exploits: list) -> list:
+    def build_training_data(self, cves: list, exploits: list, mitre_samples: list, owasp_samples: list) -> list:
         """
         Convert raw data into training format:
         Each sample: {"instruction": ..., "input": ..., "output": ...}
@@ -220,23 +227,20 @@ class DatasetBuilder:
                     "output": self._generate_cve_output(cve),
                 })
 
-        # HackerOne → "How to find this vuln"
-        for report in h1:
-            if report.get("title"):
-                samples.append({
-                    "instruction": "Как пентестеру найти эту уязвимость? Опиши методологию обнаружения и проверки.",
-                    "input": f"Vulnerability: {report.get('title', '')}\nType: {report.get('vulnerability_type', '')}\nSeverity: {report.get('severity', '')}",
-                    "output": self._generate_h1_output(report),
-                })
-
         # ExploitDB → "Write exploit steps"
         for exploit in exploits:
             if exploit.get("description"):
                 samples.append({
                     "instruction": "Опиши пошаговый процесс эксплуатации этой уязвимости. Какие инструменты использовать?",
-                    "input": f"Exploit: {exploit.get('description', '')}\nType: {exploit.get('type', '')}\nPlatform: {exploit.get('platform', 'Linux')}",
+                    "input": f"Exploit: {exploit.get('description', '')}\nType: {exploit.get('type', '')}",
                     "output": self._generate_exploit_output(exploit),
                 })
+
+        # MITRE ATT&CK
+        samples.extend(mitre_samples)
+
+        # OWASP
+        samples.extend(owasp_samples)
 
         # Generic pentest reasoning samples
         samples.extend(self._generate_reasoning_samples())
@@ -753,6 +757,100 @@ class DatasetBuilder:
                 "instruction": p["instruction"],
                 "input": "",
                 "output": p["output"],
+            })
+
+        return samples
+
+    def _build_owasp_samples(self) -> list[dict]:
+        """Build OWASP Top 10 knowledge samples."""
+        owasp_top10 = [
+            {
+                "id": "A01:2021",
+                "name": "Broken Access Control",
+                "description": "Ограничения доступа применяются непоследовательно или отсутствуют.",
+                "impact": "Неавторизованный доступ к данным, аккаунтам, административным функциям.",
+                "testing": "IDOR, privilege escalation, forced browsing, CORS misconfig, JWT manipulation.",
+            },
+            {
+                "id": "A02:2021",
+                "name": "Cryptographic Failures",
+                "description": "Конфиденциальные данные не защищены криптографией должным образом.",
+                "impact": "Кража паролей, токенов, PII, payment данных.",
+                "testing": "Проверить HTTPS, HSTS, cookie security, weak ciphers, hardcoded keys.",
+            },
+            {
+                "id": "A03:2021",
+                "name": "Injection",
+                "description": "Пользовательские данные интерпретируются как код или команды.",
+                "impact": "SQLi, XSS, Command Injection, LDAP, XXE, SSTI — RCE или утечка данных.",
+                "testing": "Проверить все параметры на injection, использовать sqlmap, test XSS payloads.",
+            },
+            {
+                "id": "A04:2021",
+                "name": "Insecure Design",
+                "description": "Уязвимости заложены в архитектуру приложения.",
+                "impact": "Логические ошибки, отсутствие rate limiting, insecure defaults.",
+                "testing": "Анализ бизнес-логики, обход workflow, mass assignment, race conditions.",
+            },
+            {
+                "id": "A05:2021",
+                "name": "Security Misconfiguration",
+                "description": "Неправильная конфигурация сервера, приложения, облака.",
+                "impact": "Exposed debug endpoints, default creds, verbose errors, open S3 buckets.",
+                "testing": "Проверить заголовки безопасности, enumerate директории, cloud assets.",
+            },
+            {
+                "id": "A06:2021",
+                "name": "Vulnerable and Outdated Components",
+                "description": "Использование библиотек и компонентов с известными уязвимостями.",
+                "impact": "RCE через уязвимые зависимости, supply chain атаки.",
+                "testing": "Проверить версии через whatweb, nuclei, CVE lookup. SCA-инструменты.",
+            },
+            {
+                "id": "A07:2021",
+                "name": "Identification and Authentication Failures",
+                "description": "Проблемы с аутентификацией и управлением сессиями.",
+                "impact": "Brute force, credential stuffing, session fixation, weak password policy.",
+                "testing": "Тестировать brute force protection, session management, MFA bypass.",
+            },
+            {
+                "id": "A08:2021",
+                "name": "Software and Data Integrity Failures",
+                "description": "Непроверенные обновления, CI/CD pipeline, десериализация.",
+                "impact": "Insecure deserialization RCE, auto-update без подписи.",
+                "testing": "Проверить десериализацию, CI/CD доступ, dependency confusion.",
+            },
+            {
+                "id": "A09:2021",
+                "name": "Security Logging and Monitoring Failures",
+                "description": "Недостаточное логирование и мониторинг инцидентов.",
+                "impact": "Атака не обнаруживается вовремя, невозможно расследование.",
+                "testing": "Проверить логируются ли попытки атак, есть ли alerting.",
+            },
+            {
+                "id": "A10:2021",
+                "name": "Server-Side Request Forgery (SSRF)",
+                "description": "Сервер выполняет запросы по URL, контролируемому атакующим.",
+                "impact": "Доступ к internal сервисам, cloud metadata, RCE через internal endpoints.",
+                "testing": "Проверить все URL-параметры на SSRF, тестировать internal порты, cloud metadata.",
+            },
+        ]
+
+        samples = []
+        for item in owasp_top10:
+            samples.append({
+                "instruction": f"Опиши уязвимость OWASP {item['id']} — {item['name']}. Как пентестеру проверить наличие этой уязвимости?",
+                "input": f"OWASP Category: {item['id']} — {item['name']}",
+                "output": (
+                    f"OWASP {item['id']}: {item['name']}\n\n"
+                    f"Описание:\n{item['description']}\n\n"
+                    f"Потенциальное воздействие:\n{item['impact']}\n\n"
+                    f"Методология тестирования:\n{item['testing']}\n\n"
+                    f"Рекомендации по исправлению:\n"
+                    f"- Применить принцип defense in depth\n"
+                    f"- Следовать OWASP ASVS и cheat sheets для этой категории\n"
+                    f"- Проводить регулярное тестирование безопасности"
+                ),
             })
 
         return samples
