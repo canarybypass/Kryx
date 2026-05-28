@@ -13,3 +13,11 @@ frontend/build/
 
 # OS
 .DS_Store
+
+# Dataset
+data/raw/
+data/cve/
+data/hackerone/
+data/exploitdb/
+data/processed/*.jsonl
+data/processed/*.json
