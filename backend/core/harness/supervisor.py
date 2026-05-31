@@ -103,3 +103,10 @@ class Supervisor:
 async def run_agent(target: str, max_steps: int = 15) -> dict:
     supervisor = Supervisor(target, max_hunters=8)
     return await supervisor.run()
+
+
+async def run_audit(source: str, github_token: str | None = None) -> dict:
+    """Shortcut for source code audit mode."""
+    from core.harness.code_auditor import CodeAuditor
+    auditor = CodeAuditor()
+    return await auditor.run(source, github_token)
