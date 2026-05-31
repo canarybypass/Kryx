@@ -13,19 +13,19 @@ ATTACK_CLASSES = [
     {
         "name": "injection",
         "description": "SQL injection, command injection, LDAP injection, XXE",
-        "tools": ["sqlmap_check", "http_probe"],
+        "tools": ["sqlmap_check", "http_probe", "browser_probe"],
         "priority": "critical",
     },
     {
         "name": "xss_csrf",
         "description": "Reflected/stored/DOM XSS, CSRF vulnerabilities",
-        "tools": ["http_probe"],
+        "tools": ["http_probe", "browser_probe"],
         "priority": "high",
     },
     {
         "name": "auth_session",
         "description": "Authentication bypass, session fixation, JWT issues, weak password policies",
-        "tools": ["http_probe", "dir_bruteforce"],
+        "tools": ["http_probe", "dir_bruteforce", "browser_probe"],
         "priority": "critical",
     },
     {
@@ -37,25 +37,25 @@ ATTACK_CLASSES = [
     {
         "name": "cors_ssrf",
         "description": "CORS misconfig, SSRF, open redirect, server-side request issues",
-        "tools": ["http_probe", "nuclei_scan"],
+        "tools": ["http_probe", "nuclei_scan", "browser_probe"],
         "priority": "high",
     },
     {
         "name": "network_services",
         "description": "Open ports, service vulnerabilities, default credentials",
-        "tools": ["nmap_scan", "ssl_audit", "nuclei_scan"],
+        "tools": ["nmap_scan", "ssl_audit", "nuclei_scan", "shodan_lookup", "censys_lookup"],
         "priority": "high",
     },
     {
         "name": "info_disclosure",
         "description": "Information leakage, verbose errors, exposed APIs, swagger/graphql",
-        "tools": ["dir_bruteforce", "http_probe", "whatweb"],
+        "tools": ["dir_bruteforce", "http_probe", "whatweb", "browser_probe"],
         "priority": "medium",
     },
     {
         "name": "dependency_cve",
         "description": "Known CVEs in detected technologies and versions",
-        "tools": ["cve_lookup", "whatweb", "nuclei_scan"],
+        "tools": ["cve_lookup", "whatweb", "nuclei_scan", "shodan_lookup", "msf_search"],
         "priority": "high",
     },
 ]
