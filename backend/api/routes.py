@@ -241,6 +241,24 @@ async def ws_audit(websocket: WebSocket):
         except Exception: pass
 
 
+# ── Benchmark ──────────────────────────────────────────────
+
+class BenchmarkRequest(BaseModel):
+    target_names: list[str] | None = None
+    difficulty: str | None = None
+    max_hunters: int = 8
+
+
+@router.post("/benchmark")
+async def run_benchmark_endpoint(req: BenchmarkRequest, user: CurrentUser):
+    from benchmark.runner import run_benchmark
+    return await run_benchmark(
+        target_names=req.target_names,
+        difficulty=req.difficulty,
+        max_hunters=req.max_hunters,
+    )
+
+
 # ── Health ─────────────────────────────────────────────────
 
 @router.get("/health")
