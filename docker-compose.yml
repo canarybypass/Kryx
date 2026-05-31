@@ -1,12 +1,33 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: hexor
+      POSTGRES_USER: hexor
+      POSTGRES_PASSWORD: hexor
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - hexor
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hexor"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   backend:
     build: ./backend
     restart: unless-stopped
     env_file: ./backend/.env
     environment:
+      DATABASE_URL: postgresql+asyncpg://hexor:hexor@postgres:5432/hexor
       HEXOR_SANDBOX_DIR: /tmp/hexor-sandbox
     volumes:
       - sandbox:/tmp/hexor-sandbox
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - hexor
     healthcheck:
@@ -27,6 +48,7 @@ services:
       - hexor
 
 volumes:
+  pgdata:
   sandbox:
 
 networks:
