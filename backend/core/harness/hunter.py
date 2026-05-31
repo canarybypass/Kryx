@@ -6,6 +6,7 @@ import asyncio
 from utils.llm import get_llm
 from core.agents.prompts import HUNTER_PROMPT
 from core.tools.scanner import run_tool, TOOLS_SCHEMA
+from core.harness.memory import AgentMemory
 
 
 # Attack classes for parallel hunting
@@ -102,54 +103,79 @@ class HunterStage:
 
     async def _run_hunter(self, attack_class: dict) -> list:
         llm = get_llm()
+        memory = AgentMemory(attack_class=attack_class["name"], target=self.target)
+
         tools_desc = "\n".join(
             f"- {t['name']}({', '.join(f'{k}: {v}' for k, v in t['parameters'].items())}): {t['description']}"
             for t in TOOLS_SCHEMA
             if t["name"] in attack_class["tools"]
         )
 
-        context = f"""Target: {self.target}
-Attack class: {attack_class['name']} — {attack_class['description']}
-Available tools: {', '.join(attack_class['tools'])}
+        base_context = (
+            f"Target: {self.target}\n"
+            f"Attack class: {attack_class['name']} — {attack_class['description']}\n"
+            f"Available tools: {', '.join(attack_class['tools'])}\n\n"
+            f"Recon data:\n{json.dumps(self.recon, indent=2, ensure_ascii=False)[:2000]}"
+        )
 
-Recon data:
-{json.dumps(self.recon, indent=2, ensure_ascii=False)[:2000]}
-"""
+        max_steps = 8  # увеличили с 6 до 8
 
-        system = HUNTER_PROMPT.format(tools=tools_desc, context=context, max_steps=6, step=0)
-        observations = []
+        for step in range(max_steps):
+            # Build prompt with full memory
+            memory_text = memory.to_prompt()
+            replan_hint = memory.replan_hint() if memory.should_replan() else ""
 
-        for step in range(6):
-            history = ""
-            if observations:
-                history = "\n\n--- Previous steps ---\n" + "\n".join(
-                    f"Step {o['step']}: {o['tool']} → {json.dumps(o['result'], ensure_ascii=False)[:300]}"
-                    for o in observations[-3:]
-                )
+            prompt = (
+                f"{base_context}\n\n"
+                f"{memory_text}\n\n"
+                f"{replan_hint}\n"
+                f"Текущий шаг: {step + 1}/{max_steps}"
+            ).strip()
 
             system = HUNTER_PROMPT.format(
-                tools=tools_desc, context=context, max_steps=6, step=step + 1
+                tools=tools_desc,
+                context=base_context,
+                max_steps=max_steps,
+                step=step + 1,
             )
 
-            response = await llm.ask(system, context + history)
+            response = await llm.ask(system, prompt)
             parsed = _parse_json(response)
 
             if not parsed or not isinstance(parsed, dict):
                 continue
 
+            # Extract hypothesis if present
+            if parsed.get("thought"):
+                memory.add_hypothesis(parsed["thought"][:200])
+
             action = parsed.get("action")
+
             if action == "FINISH":
-                return parsed.get("findings", [])
+                findings = parsed.get("findings", [])
+                for f in findings:
+                    memory.add_finding(f)
+                return findings
+
+            if not action:
+                continue
+
+            # Skip if already tried exact same call
+            params = parsed.get("params", {})
+            if memory.already_tried(action, params):
+                # Force agent to try something else next step
+                memory.failed_tools.append(action)
+                continue
 
             # Execute tool
-            result = await run_tool(action, parsed.get("params", {}))
-            observations.append({
-                "step": step + 1,
-                "thought": parsed.get("thought", ""),
-                "tool": action,
-                "params": parsed.get("params", {}),
-                "result": result,
-            })
+            result = await run_tool(action, params)
+            memory.add_observation(
+                step=step + 1,
+                thought=parsed.get("thought", ""),
+                tool=action,
+                params=params,
+                result=result,
+            )
 
             if self.emit:
                 await self.emit("hunter_step", {
@@ -157,9 +183,11 @@ Recon data:
                     "step": step + 1,
                     "tool": action,
                     "thought": parsed.get("thought", ""),
+                    "useful": memory.observations[-1].useful,
                 })
 
-        return []
+        # Timeout — return whatever findings memory has
+        return memory.findings
 
 
 def _parse_json(text: str) -> dict | None:
