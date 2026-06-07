@@ -50,6 +50,189 @@ async def list_scans(user: CurrentUser, db: DB):
     ]
 
 
+
+
+# ── V2 Scans (New 6-stage pipeline) ────────────────────────
+
+class ScanRequestV2(BaseModel):
+    target: str
+    target_type: str = "repo"  # web|repo|binary|source
+
+
+@router.post("/v2/scans")
+async def create_scan_v2(req: ScanRequestV2, user: CurrentUser, db: DB):
+    """
+    Create new scan using v2 pipeline (6 stages).
+    
+    Returns scan ID immediately, runs in background.
+    Use WebSocket /v2/scans/{id}/live for progress.
+    """
+    from core.harness.supervisor_v2 import SupervisorV2
+    from db import Scan, ScanStatus
+    
+    # Check org scan limit
+    org = user.organization
+    if org.monthly_scans_used >= org.monthly_scan_limit:
+        raise HTTPException(403, "Monthly scan limit reached")
+    
+    # Create scan record
+    scan = Scan(
+        organization_id=org.id,
+        user_id=user.id,
+        target=req.target,
+        target_type=req.target_type,
+        status=ScanStatus.QUEUED
+    )
+    db.add(scan)
+    
+    # Increment usage
+    org.monthly_scans_used += 1
+    
+    await db.commit()
+    await db.refresh(scan)
+    
+    # Start pipeline in background
+    import asyncio
+    asyncio.create_task(_run_scan_v2(scan.id, req.target, req.target_type))
+    
+    return {
+        "scan_id": scan.id,
+        "status": "queued",
+        "message": "Scan started. Connect to WebSocket for live updates."
+    }
+
+
+async def _run_scan_v2(scan_id: int, target: str, target_type: str):
+    """Background task to run scan pipeline"""
+    from core.harness.supervisor_v2 import run_pipeline
+    
+    async with SessionLocal() as session:
+        try:
+            # Update to running
+            scan = await session.get(Scan, scan_id)
+            scan.status = ScanStatus.RUNNING
+            scan.started_at = datetime.utcnow()
+            await session.commit()
+            
+            # Run pipeline
+            result = await run_pipeline(target, target_type, scan_id, session)
+            
+            print(f"[Scan {scan_id}] Completed: {len(result.static_findings)} findings")
+        
+        except Exception as e:
+            print(f"[Scan {scan_id}] Failed: {e}")
+            scan = await session.get(Scan, scan_id)
+            if scan:
+                scan.status = ScanStatus.FAILED
+                scan.summary = f"Error: {str(e)}"
+                await session.commit()
+
+
+@router.get("/v2/scans/{scan_id}")
+async def get_scan_v2(scan_id: int, user: CurrentUser, db: DB):
+    """Get scan details including all findings"""
+    from sqlalchemy import select
+    from db import Vulnerability
+    
+    scan = await db.get(Scan, scan_id)
+    if not scan or scan.organization_id != user.organization_id:
+        raise HTTPException(404, "Scan not found")
+    
+    # Get vulnerabilities
+    vulns_result = await db.execute(
+        select(Vulnerability).where(Vulnerability.scan_id == scan_id)
+    )
+    vulns = vulns_result.scalars().all()
+    
+    return {
+        "id": scan.id,
+        "target": scan.target,
+        "target_type": scan.target_type,
+        "status": scan.status,
+        "summary": scan.summary,
+        "stats": scan.stats,
+        "vulnerabilities": [
+            {
+                "id": v.id,
+                "type": v.vuln_type,
+                "severity": v.severity,
+                "name": v.name,
+                "description": v.description,
+                "location": v.location,
+                "cwe_id": v.cwe_id,
+                "verified": v.verified,
+                "exploitability_score": v.exploitability_score
+            }
+            for v in vulns
+        ],
+        "pipeline_progress": {
+            "static_analysis": scan.static_analysis_done,
+            "fuzzing": scan.fuzzing_done,
+            "variant_hunt": scan.variant_hunt_done,
+            "exploit_build": scan.exploit_build_done,
+            "verification": scan.verification_done
+        },
+        "created_at": scan.created_at,
+        "started_at": scan.started_at,
+        "finished_at": scan.finished_at
+    }
+
+
+@router.websocket("/v2/scans/{scan_id}/live")
+async def scan_live_v2(websocket: WebSocket, scan_id: int):
+    """
+    Live progress updates for scan.
+    
+    Events:
+    - pipeline_started
+    - stage_started {stage}
+    - stage_completed {stage, findings_count}
+    - stage_failed {stage, error}
+    - pipeline_completed
+    """
+    await websocket.accept()
+    
+    # TODO: Implement WebSocket progress streaming
+    # For now, just send initial status
+    
+    async with SessionLocal() as session:
+        scan = await session.get(Scan, scan_id)
+        if not scan:
+            await websocket.send_json({"error": "Scan not found"})
+            await websocket.close()
+            return
+        
+        await websocket.send_json({
+            "event": "connected",
+            "data": {"scan_id": scan_id, "status": scan.status}
+        })
+        
+        # Keep connection open and send updates
+        try:
+            while True:
+                # Poll for updates
+                await asyncio.sleep(2)
+                
+                scan = await session.get(Scan, scan_id)
+                await websocket.send_json({
+                    "event": "status_update",
+                    "data": {
+                        "status": scan.status,
+                        "static_analysis": scan.static_analysis_done,
+                        "fuzzing": scan.fuzzing_done,
+                        "variant_hunt": scan.variant_hunt_done,
+                        "exploit_build": scan.exploit_build_done,
+                        "verification": scan.verification_done
+                    }
+                })
+                
+                if scan.status in [ScanStatus.COMPLETED, ScanStatus.FAILED]:
+                    break
+        
+        except WebSocketDisconnect:
+            pass
+        finally:
+            await websocket.close()
 @router.get("/scans/{scan_id}")
 async def get_scan(scan_id: int, user: CurrentUser, db: DB):
     scan = await db.get(Scan, scan_id)
