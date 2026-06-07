@@ -81,6 +81,16 @@ class Organization(Base):
     monthly_scan_limit: Mapped[int] = mapped_column(Integer, default=10)
     monthly_scans_used: Mapped[int] = mapped_column(Integer, default=0)
     
+    # Integrations
+    webhook_secret: Mapped[str | None] = mapped_column(String(128))
+    slack_webhook_url: Mapped[str | None] = mapped_column(String(512))
+    notification_webhooks: Mapped[list | None] = mapped_column(JSON)
+    
+    # Integrations
+    webhook_secret: Mapped[str | None] = mapped_column(String(128))
+    slack_webhook_url: Mapped[str | None] = mapped_column(String(512))
+    notification_webhooks: Mapped[list | None] = mapped_column(JSON)  # List of webhook URLs
+    
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
