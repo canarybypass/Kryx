@@ -253,17 +253,73 @@ class SupervisorV2:
         await self._update_scan_status(exploit_build_done=False)
         
         try:
-            # TODO: Implement exploit builder
-            # ROP chain generation, heap spray, KASLR bypass, etc
+            from knowledge.knowledge_base import KnowledgeBase
             
-            print("[Stage 4] Exploit Builder: Not implemented yet")
+            # Only build exploits for high/critical findings
+            high_severity = [
+                f for f in self.result.static_findings
+                if f.severity in ["critical", "high"]
+            ][:5]
+            
+            if not high_severity:
+                print("[Stage 4] Exploit Builder: No high-severity findings")
+                await self._update_scan_status(exploit_build_done=True)
+                return
+            
+            kb = KnowledgeBase(self.db) if self.db else None
+            exploits = []
+            
+            for finding in high_severity:
+                print(f"[Stage 4] Building exploit for: {finding.name}")
+                
+                # Get exploit template from knowledge base
+                if kb:
+                    template = await kb.get_exploit_template(
+                        self._map_vuln_type(finding.vuln_type)
+                    )
+                    
+                    if template:
+                        # Generate exploit code from template
+                        exploit_code = self._generate_exploit(finding, template)
+                        
+                        exploit = {
+                            "name": f"Exploit for {finding.name}",
+                            "vulnerability": finding.name,
+                            "technique": template.technique,
+                            "code": exploit_code,
+                            "language": template.language
+                        }
+                        exploits.append(exploit)
+                        
+                        await self._emit("exploit_generated", {
+                            "vuln": finding.name,
+                            "technique": template.technique
+                        })
+            
+            self.result.exploits = exploits
             
             await self._update_scan_status(exploit_build_done=True)
-            await self._emit("stage_completed", {"stage": "exploit_builder", "exploits": 0})
+            await self._emit("stage_completed", {
+                "stage": "exploit_builder",
+                "exploits": len(exploits)
+            })
+            
+            print(f"[Stage 4] Exploit Builder: {len(exploits)} exploits generated")
         
         except Exception as e:
             print(f"[Stage 4] Exploit Builder failed: {e}")
             await self._emit("stage_failed", {"stage": "exploit_builder", "error": str(e)})
+    
+    def _generate_exploit(self, finding, template) -> str:
+        """Generate exploit code from template and finding"""
+        code = template.code_template
+        
+        # Simple placeholder substitution
+        code = code.replace("{target}", finding.location.file)
+        code = code.replace("{vuln_description}", finding.description[:100])
+        code = code.replace("{offset}", "64")  # Default offset
+        
+        return code
     
     async def _run_chain_constructor(self):
         """Stage 5: Build multi-vulnerability attack chains"""
@@ -287,13 +343,41 @@ class SupervisorV2:
         await self._update_scan_status(verification_done=False)
         
         try:
-            # TODO: Implement sandbox verification
-            # QEMU/Firecracker VM testing
+            from core.sandbox.executor import create_sandbox
             
-            print("[Stage 6] Verification: Not implemented yet")
+            # Only verify if we have exploits
+            if not self.result.exploits:
+                print("[Stage 6] Verification: No exploits to verify")
+                await self._update_scan_status(verification_done=True)
+                return
+            
+            sandbox = create_sandbox()
+            verified = []
+            
+            for exploit in self.result.exploits[:5]:  # Verify top 5
+                print(f"[Stage 6] Verifying exploit: {exploit.get('name')}")
+                
+                result = await sandbox.execute_exploit(
+                    exploit_code=exploit.get("code", ""),
+                    timeout=30
+                )
+                
+                if result.get("exploit_success"):
+                    verified.append(exploit)
+                    await self._emit("exploit_verified", {
+                        "exploit": exploit.get("name"),
+                        "success": True
+                    })
+            
+            self.result.verified_exploits = verified
             
             await self._update_scan_status(verification_done=True)
-            await self._emit("stage_completed", {"stage": "verification", "verified": 0})
+            await self._emit("stage_completed", {
+                "stage": "verification",
+                "verified": len(verified)
+            })
+            
+            print(f"[Stage 6] Verification: {len(verified)} exploits verified")
         
         except Exception as e:
             print(f"[Stage 6] Verification failed: {e}")
