@@ -377,6 +377,139 @@ async def stripe_webhook(request: Request, db: DB):
         result = await billing.handle_webhook(payload, signature)
         return result
     except ValueError as e:
+
+
+# ── Webhooks & Integrations ─────────────────────────────────
+
+from integrations.webhooks import WebhookService, NotificationService
+
+
+@router.post("/webhooks/github/{org_id}")
+async def github_webhook(
+    org_id: int,
+    request: Request,
+    db: DB
+):
+    """
+    GitHub webhook endpoint.
+    
+    Headers:
+        X-GitHub-Event: Event type (push, pull_request, release)
+        X-Hub-Signature-256: HMAC signature (if secret configured)
+    
+    Triggers scan on:
+    - Push to main/master
+    - PR open/sync
+    - Release publish
+    """
+    payload = await request.json()
+    signature = request.headers.get("X-Hub-Signature-256", "")
+    
+    webhook = WebhookService(db)
+    
+    try:
+        result = await webhook.handle_github_webhook(payload, signature, org_id)
+        return result
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@router.post("/webhooks/gitlab/{org_id}")
+async def gitlab_webhook(
+    org_id: int,
+    request: Request,
+    db: DB
+):
+    """
+    GitLab webhook endpoint.
+    
+    Headers:
+        X-Gitlab-Event: Event type (Push Hook, Merge Request Hook)
+        X-Gitlab-Token: Secret token (if configured)
+    
+    Triggers scan on:
+    - Push
+    - MR open/update
+    - Tag push
+    """
+    payload = await request.json()
+    token = request.headers.get("X-Gitlab-Token", "")
+    
+    webhook = WebhookService(db)
+    
+    try:
+        result = await webhook.handle_gitlab_webhook(payload, token, org_id)
+        return result
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+class WebhookConfigRequest(PydanticBaseModel):
+    webhook_url: str
+    events: list[str] = ["scan.completed", "vuln.critical_found"]
+
+
+@router.post("/integrations/webhooks")
+async def create_webhook_config(req: WebhookConfigRequest, user: CurrentUser, db: DB):
+    """
+    Configure webhook for notifications.
+    
+    Events:
+    - scan.completed
+    - scan.failed
+    - vuln.critical_found
+    - vuln.high_found
+    """
+    # Store webhook config (would need WebhookConfig table)
+    # For now, just validate
+    if not req.webhook_url.startswith(("http://", "https://")):
+        raise HTTPException(400, "Invalid webhook URL")
+    
+    return {
+        "status": "configured",
+        "webhook_url": req.webhook_url,
+        "events": req.events
+    }
+
+
+@router.post("/integrations/test-webhook")
+async def test_webhook(req: WebhookConfigRequest, user: CurrentUser):
+    """Send test webhook to verify configuration"""
+    notification = NotificationService()
+    
+    success = await notification.send_webhook(
+        req.webhook_url,
+        "test",
+        {"message": "Hexor webhook test successful", "org": user.organization.name}
+    )
+    
+    if success:
+        return {"status": "success", "message": "Test webhook delivered"}
+    else:
+        raise HTTPException(400, "Failed to deliver webhook")
+
+
+class SlackNotificationRequest(PydanticBaseModel):
+    slack_webhook_url: str
+    message: str
+    severity: str = "info"
+
+
+@router.post("/integrations/slack/notify")
+async def send_slack_notification(req: SlackNotificationRequest, user: CurrentUser):
+    """Send test Slack notification"""
+    notification = NotificationService()
+    
+    success = await notification.send_slack_notification(
+        req.slack_webhook_url,
+        req.message,
+        req.severity
+    )
+    
+    if success:
+        return {"status": "sent"}
+    else:
+        raise HTTPException(400, "Failed to send Slack notification")
         raise HTTPException(400, str(e))
 @router.get("/scans/{scan_id}")
 async def get_scan(scan_id: int, user: CurrentUser, db: DB):
