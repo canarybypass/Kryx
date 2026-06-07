@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional, Callable
 
-from core.harness.static_analyzer import run_static_analysis, StaticFinding
+from core.harness.static_analyzer import run_static_analysis, StaticFinding, CodeLocation
 from db import Scan, Vulnerability, AttackChain, ScanStatus, VulnerabilitySeverity, VulnerabilityType
 
 
@@ -174,13 +174,74 @@ class SupervisorV2:
         await self._update_scan_status(variant_hunt_done=False)
         
         try:
-            # TODO: Implement variant hunter
-            # Use code embeddings + semantic search to find similar patterns
+            from core.harness.variant_hunter import find_variants
             
-            print("[Stage 3] Variant Hunter: Not implemented yet")
+            # Only run if we have static findings
+            if not self.result.static_findings:
+                print("[Stage 3] Variant Hunter: No findings to hunt variants for")
+                await self._update_scan_status(variant_hunt_done=True)
+                return
+            
+            project_path = self._get_project_path()
+            
+            # Hunt variants for top severity findings only
+            high_severity = [
+                f for f in self.result.static_findings 
+                if f.severity in ["critical", "high"]
+            ][:5]  # Top 5 to avoid API cost explosion
+            
+            all_variants = []
+            
+            for finding in high_severity:
+                print(f"[Stage 3] Hunting variants for: {finding.name}")
+                
+                variants = await find_variants(
+                    project_path,
+                    finding.location.snippet,
+                    f"{finding.location.file}:{finding.location.line}",
+                    finding.vuln_type
+                )
+                
+                # Convert to StaticFinding format
+                for variant in variants:
+                    variant_finding = StaticFinding(
+                        vuln_type=finding.vuln_type,
+                        severity=finding.severity,
+                        name=f"Variant: {variant.fragment.function_name} (similar to {finding.name})",
+                        description=variant.description or f"Similar vulnerability found via variant analysis",
+                        location=CodeLocation(
+                            file=variant.fragment.file,
+                            line=variant.fragment.start_line,
+                            column=0,
+                            snippet=variant.fragment.code[:200]
+                        ),
+                        confidence=variant.confidence,
+                        evidence={
+                            "variant_of": finding.name,
+                            "similarity_score": variant.similarity_score,
+                            "similarity_reason": variant.similarity_reason
+                        },
+                        cwe_id=finding.cwe_id
+                    )
+                    all_variants.append(variant_finding)
+                
+                await self._emit("variant_found", {
+                    "original": finding.name,
+                    "variants_count": len(variants)
+                })
+            
+            self.result.variants = all_variants
+            
+            # Add variants to static findings
+            self.result.static_findings.extend(all_variants)
             
             await self._update_scan_status(variant_hunt_done=True)
-            await self._emit("stage_completed", {"stage": "variant_hunter", "variants": 0})
+            await self._emit("stage_completed", {
+                "stage": "variant_hunter",
+                "variants": len(all_variants)
+            })
+            
+            print(f"[Stage 3] Variant Hunter: Found {len(all_variants)} variants")
         
         except Exception as e:
             print(f"[Stage 3] Variant Hunter failed: {e}")
