@@ -1,4 +1,4 @@
-# Hexor
+# Vulnyx
 
 AI-powered penetration testing platform. Multi-agent harness with real tool integration.
 
@@ -44,3 +44,38 @@ npm install && npm start  # port 3000
 - [ ] Custom fine-tuned model
 - [ ] Auth + PostgreSQL scan history
 - [ ] Team dashboard + subscription tiers
+
+---
+
+**v2.0 Enterprise Features (in development)**
+
+### New 6-Stage Pipeline
+1. ✅ Static Analysis - Multi-language AST parsing
+2. ⏭️ Fuzzing Orchestrator
+3. ✅ Variant Hunter - Big Sleep style similar vulnerability detection
+4. ✅ Exploit Builder - Template-based exploit generation
+5. ⏭️ Chain Constructor
+6. ✅ Verification - Sandboxed execution
+
+### Enterprise Features
+- Multi-tenant architecture
+- Stripe subscription billing ($99-$9,999/mo)
+- GitHub/GitLab webhook integration
+- Slack notifications
+- Vulnerability knowledge base
+
+### Database Schema
+- Organizations (with subscription tiers)
+- Users with RBAC (owner/admin/member/viewer)
+- Scans with 6-stage pipeline tracking
+- First-class Vulnerabilities with exploitability scores
+- Exploit templates with success rate tracking
+- Vulnerability patterns with code signatures
+
+### API v2
+- `/api/v2/scans` - New pipeline endpoints
+- `/api/billing/*` - Subscription management
+- `/api/webhooks/*` - GitHub/GitLab integration
+- `/api/knowledge/*` - Vulnerability pattern search
+
+**Domain:** vulnyx.io (coming soon)
