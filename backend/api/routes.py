@@ -1,7 +1,8 @@
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Optional
+import os
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -233,6 +234,150 @@ async def scan_live_v2(websocket: WebSocket, scan_id: int):
             pass
         finally:
             await websocket.close()
+
+
+# ── Billing & Subscriptions ────────────────────────────────
+
+from billing.stripe_integration import BillingService, check_subscription_valid, check_scan_limit
+from pydantic import BaseModel as PydanticBaseModel
+
+
+class CreateSubscriptionRequest(PydanticBaseModel):
+    tier: str  # starter|pro|enterprise|apt
+    payment_method_id: Optional[str] = None
+
+
+class UpdateSubscriptionRequest(PydanticBaseModel):
+    new_tier: str
+
+
+@router.post("/billing/subscription")
+async def create_subscription(req: CreateSubscriptionRequest, user: CurrentUser, db: DB):
+    """
+    Create new subscription for organization.
+    
+    Returns client_secret for payment confirmation if payment required.
+    """
+    from db import SubscriptionTier
+    
+    # Validate tier
+    try:
+        tier = SubscriptionTier(req.tier)
+    except ValueError:
+        raise HTTPException(400, f"Invalid tier: {req.tier}")
+    
+    org = user.organization
+    
+    # Create Stripe customer if doesn't exist
+    billing = BillingService(db)
+    
+    if not org.stripe_customer_id:
+        await billing.create_customer(org, user.email)
+    
+    # Create subscription
+    result = await billing.create_subscription(
+        org,
+        tier,
+        req.payment_method_id
+    )
+    
+    return result
+
+
+@router.delete("/billing/subscription")
+async def cancel_subscription(user: CurrentUser, db: DB):
+    """Cancel organization's subscription (at period end)"""
+    billing = BillingService(db)
+    success = await billing.cancel_subscription(user.organization)
+    
+    if not success:
+        raise HTTPException(400, "No active subscription to cancel")
+    
+    return {"status": "canceling", "message": "Subscription will cancel at period end"}
+
+
+@router.put("/billing/subscription")
+async def update_subscription(req: UpdateSubscriptionRequest, user: CurrentUser, db: DB):
+    """Upgrade/downgrade subscription tier"""
+    from db import SubscriptionTier
+    
+    # Only org owners can change subscription
+    if user.role != "owner":
+        raise HTTPException(403, "Only organization owners can manage subscriptions")
+    
+    try:
+        new_tier = SubscriptionTier(req.new_tier)
+    except ValueError:
+        raise HTTPException(400, f"Invalid tier: {req.new_tier}")
+    
+    billing = BillingService(db)
+    result = await billing.update_subscription(user.organization, new_tier)
+    
+    return result
+
+
+@router.get("/billing/portal")
+async def get_billing_portal(user: CurrentUser, db: DB):
+    """
+    Get Stripe Customer Portal URL.
+    
+    Customers can manage billing, payment methods, view invoices.
+    """
+    org = user.organization
+    
+    if not org.stripe_customer_id:
+        raise HTTPException(400, "No billing account")
+    
+    billing = BillingService(db)
+    
+    # Return URL should be your frontend
+    return_url = os.getenv("FRONTEND_URL", "http://localhost:3000") + "/settings/billing"
+    
+    portal_url = await billing.create_portal_session(org, return_url)
+    
+    return {"url": portal_url}
+
+
+@router.get("/billing/usage")
+async def get_usage(user: CurrentUser):
+    """Get organization's current usage and limits"""
+    org = user.organization
+    
+    return {
+        "subscription_tier": org.subscription_tier,
+        "subscription_status": org.subscription_status,
+        "monthly_scan_limit": org.monthly_scan_limit,
+        "monthly_scans_used": org.monthly_scans_used,
+        "scans_remaining": org.monthly_scan_limit - org.monthly_scans_used,
+        "trial_ends_at": org.trial_ends_at.isoformat() if org.trial_ends_at else None
+    }
+
+
+@router.post("/webhooks/stripe")
+async def stripe_webhook(request: Request, db: DB):
+    """
+    Stripe webhook handler.
+    
+    Handles:
+    - subscription updates
+    - payment success/failure
+    - subscription cancellation
+    
+    Requires STRIPE_WEBHOOK_SECRET in .env
+    """
+    payload = await request.body()
+    signature = request.headers.get("stripe-signature")
+    
+    if not signature:
+        raise HTTPException(400, "Missing signature")
+    
+    billing = BillingService(db)
+    
+    try:
+        result = await billing.handle_webhook(payload, signature)
+        return result
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 @router.get("/scans/{scan_id}")
 async def get_scan(scan_id: int, user: CurrentUser, db: DB):
     scan = await db.get(Scan, scan_id)
