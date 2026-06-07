@@ -510,6 +510,190 @@ async def send_slack_notification(req: SlackNotificationRequest, user: CurrentUs
         return {"status": "sent"}
     else:
         raise HTTPException(400, "Failed to send Slack notification")
+
+
+# ── Knowledge Base ──────────────────────────────────────────
+
+from knowledge.knowledge_base import KnowledgeBase, seed_knowledge_base
+
+
+@router.get("/knowledge/stats")
+async def get_kb_stats(db: DB):
+    """Get knowledge base statistics"""
+    kb = KnowledgeBase(db)
+    return await kb.get_stats()
+
+
+@router.get("/knowledge/patterns")
+async def search_patterns(
+    query: str = "",
+    vuln_type: Optional[str] = None,
+    limit: int = 10,
+    db: DB = None
+):
+    """
+    Search vulnerability patterns.
+    
+    Query params:
+        query: Search text
+        vuln_type: Filter by type
+        limit: Max results
+    """
+    from db import VulnerabilityType
+    
+    kb = KnowledgeBase(db)
+    
+    vtype = None
+    if vuln_type:
+        try:
+            vtype = VulnerabilityType(vuln_type)
+        except ValueError:
+            pass
+    
+    patterns = await kb.search_patterns(query, vtype, limit)
+    
+    return {
+        "count": len(patterns),
+        "patterns": [
+            {
+                "id": p.id,
+                "name": p.pattern_name,
+                "type": p.vuln_type,
+                "severity": p.severity,
+                "signature": p.code_signature,
+                "examples": p.examples or [],
+                "cve_references": p.cve_references or []
+            }
+            for p in patterns
+        ]
+    }
+
+
+@router.get("/knowledge/exploits")
+async def get_exploit_templates(
+    vuln_type: Optional[str] = None,
+    technique: Optional[str] = None,
+    db: DB = None
+):
+    """
+    Get exploit templates.
+    
+    Query params:
+        vuln_type: Filter by vulnerability type
+        technique: Filter by technique (ROP, heap_spray, etc)
+    """
+    from db import VulnerabilityType, ExploitTemplate
+    from sqlalchemy import select
+    
+    stmt = select(ExploitTemplate)
+    
+    if vuln_type:
+        try:
+            vtype = VulnerabilityType(vuln_type)
+            stmt = stmt.where(ExploitTemplate.vuln_type == vtype)
+        except ValueError:
+            pass
+    
+    if technique:
+        stmt = stmt.where(ExploitTemplate.technique == technique)
+    
+    stmt = stmt.limit(20)
+    
+    result = await db.execute(stmt)
+    templates = result.scalars().all()
+    
+    return {
+        "count": len(templates),
+        "templates": [
+            {
+                "id": t.id,
+                "name": t.name,
+                "type": t.vuln_type,
+                "technique": t.technique,
+                "language": t.language,
+                "description": t.description,
+                "success_rate": (t.times_successful / max(t.times_used, 1)) if t.times_used > 0 else 0.0,
+                "times_used": t.times_used
+            }
+            for t in templates
+        ]
+    }
+
+
+@router.get("/knowledge/exploits/{template_id}")
+async def get_exploit_template_code(template_id: int, db: DB):
+    """Get full exploit template code"""
+    from db import ExploitTemplate
+    
+    template = await db.get(ExploitTemplate, template_id)
+    if not template:
+        raise HTTPException(404, "Template not found")
+    
+    return {
+        "id": template.id,
+        "name": template.name,
+        "code": template.code_template,
+        "language": template.language,
+        "requirements": template.requirements or []
+    }
+
+
+@router.get("/knowledge/cve/{cve_id}")
+async def lookup_cve(cve_id: str, db: DB):
+    """
+    Lookup CVE information.
+    
+    Example: /knowledge/cve/CVE-2021-3156
+    """
+    kb = KnowledgeBase(db)
+    cve = await kb.lookup_cve(cve_id)
+    
+    if not cve:
+        raise HTTPException(404, "CVE not found")
+    
+    return cve
+
+
+@router.get("/knowledge/similar/{vuln_id}")
+async def find_similar_vulns(
+    vuln_id: int,
+    threshold: float = 0.7,
+    limit: int = 10,
+    db: DB = None
+):
+    """Find similar vulnerabilities to given one"""
+    kb = KnowledgeBase(db)
+    similar = await kb.find_similar_vulns(vuln_id, threshold, limit)
+    
+    return {
+        "reference_vuln_id": vuln_id,
+        "count": len(similar),
+        "similar": [
+            {
+                "vuln_id": s["vulnerability"].id,
+                "name": s["vulnerability"].name,
+                "type": s["vulnerability"].vuln_type,
+                "severity": s["vulnerability"].severity,
+                "similarity_score": s["similarity_score"]
+            }
+            for s in similar
+        ]
+    }
+
+
+@router.post("/admin/knowledge/seed")
+async def seed_kb(user: CurrentUser, db: DB):
+    """
+    Seed knowledge base with initial patterns and templates.
+    
+    Admin only. Run once during setup.
+    """
+    if user.role != "owner":
+        raise HTTPException(403, "Admin only")
+    
+    await seed_knowledge_base(db)
+    
+    return {"status": "seeded"}
         raise HTTPException(400, str(e))
 @router.get("/scans/{scan_id}")
 async def get_scan(scan_id: int, user: CurrentUser, db: DB):
