@@ -26,11 +26,11 @@ from rich.panel import Panel
 console = Console()
 
 # Config file location
-CONFIG_DIR = Path.home() / ".hexor"
+CONFIG_DIR = Path.home() / ".vulnyx"
 CONFIG_FILE = CONFIG_DIR / "config.json"
 
 # Default API endpoint
-DEFAULT_API_URL = "https://api.vulnyx.io"
+DEFAULT_API_URL = "http://localhost:8000"
 
 
 class VulnyxClient:
@@ -104,7 +104,7 @@ def cli():
 @click.option("--api-key", prompt="API Key", hide_input=True, help="Your Hexor API key")
 @click.option("--api-url", default=DEFAULT_API_URL, help="API endpoint URL")
 def login(api_key: str, api_url: str):
-    """Login to Hexor (save API credentials)"""
+    """Login to Vulnyx (save API credentials)"""
     client = VulnyxClient.__new__(VulnyxClient)
     client.login(api_key, api_url)
 

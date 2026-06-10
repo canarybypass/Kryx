@@ -377,6 +377,7 @@ async def stripe_webhook(request: Request, db: DB):
         result = await billing.handle_webhook(payload, signature)
         return result
     except ValueError as e:
+        raise HTTPException(400, str(e))
 
 
 # ── Webhooks & Integrations ─────────────────────────────────
@@ -621,8 +622,8 @@ async def get_exploit_templates(
 
 
 @router.get("/knowledge/exploits/{template_id}")
-async def get_exploit_template_code(template_id: int, db: DB):
-    """Get full exploit template code"""
+async def get_exploit_template_code(template_id: int, user: CurrentUser, db: DB):
+    """Get full exploit template code. Auth required — raw exploit code is sensitive."""
     from db import ExploitTemplate
     
     template = await db.get(ExploitTemplate, template_id)
@@ -694,7 +695,8 @@ async def seed_kb(user: CurrentUser, db: DB):
     await seed_knowledge_base(db)
     
     return {"status": "seeded"}
-        raise HTTPException(400, str(e))
+
+
 @router.get("/scans/{scan_id}")
 async def get_scan(scan_id: int, user: CurrentUser, db: DB):
     scan = await db.get(Scan, scan_id)

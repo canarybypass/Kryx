@@ -3,15 +3,15 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: hexor
-      POSTGRES_USER: hexor
-      POSTGRES_PASSWORD: hexor
+      POSTGRES_DB: vulnyx
+      POSTGRES_USER: vulnyx
+      POSTGRES_PASSWORD: vulnyx
     volumes:
       - pgdata:/var/lib/postgresql/data
     networks:
-      - hexor
+      - vulnyx
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U hexor"]
+      test: ["CMD-SHELL", "pg_isready -U vulnyx"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -21,15 +21,15 @@ services:
     restart: unless-stopped
     env_file: ./backend/.env
     environment:
-      DATABASE_URL: postgresql+asyncpg://hexor:hexor@postgres:5432/hexor
-      HEXOR_SANDBOX_DIR: /tmp/hexor-sandbox
+      DATABASE_URL: postgresql+asyncpg://vulnyx:vulnyx@postgres:5432/vulnyx
+      VULNYX_SANDBOX_DIR: /tmp/vulnyx-sandbox
     volumes:
-      - sandbox:/tmp/hexor-sandbox
+      - sandbox:/tmp/vulnyx-sandbox
     depends_on:
       postgres:
         condition: service_healthy
     networks:
-      - hexor
+      - vulnyx
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
       interval: 30s
@@ -45,12 +45,12 @@ services:
       backend:
         condition: service_healthy
     networks:
-      - hexor
+      - vulnyx
 
 volumes:
   pgdata:
   sandbox:
 
 networks:
-  hexor:
+  vulnyx:
     driver: bridge

@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vulnyx — AI Security Scanner</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    
+    <style>
+        *, *::before, *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+            font-size: 16px;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #000;
+            color: #fff;
+            overflow-x: hidden;
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Loader */
+        .loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.8s ease, visibility 0.8s ease;
+        }
+
+        .loader.loaded {
+            opacity: 0;
+            visibility: hidden;
+        }
+
+        .loader-text {
+            font-size: 0.875rem;
+            letter-spacing: 0.3em;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.5);
+            margin-top: 2rem;
+        }
+
+        .loader-bar {
+            width: 1px;
+            height: 0;
+            background: #fff;
+            animation: loadBar 2s ease forwards;
+        }
+
+        @keyframes loadBar {
+            0% { height: 0; }
+            100% { height: 80px; }
+        }
+
+        /* Canvas */
+        #bg-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            opacity: 0.6;
+        }
+
+        /* Nav */
+        nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 2rem 4rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 1000;
+            mix-blend-mode: difference;
+        }
+
+        .logo {
+            font-size: 1.25rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            color: #fff;
+            text-decoration: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .logo:hover {
+            opacity: 0.6;
+        }
+
+        .nav-menu {
+            display: flex;
+            gap: 3rem;
+            list-style: none;
+        }
+
+        .nav-menu a {
+            color: #fff;
+            text-decoration: none;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: opacity 0.3s ease;
+        }
+
+        .nav-menu a:hover {
+            opacity: 0.6;
+        }
+
+        .nav-cta {
+            padding: 0.875rem 2rem;
+            background: #fff;
+            color: #000;
+            border: none;
+            border-radius: 100px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+        }
+
+        .nav-cta:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 30px rgba(255, 255, 255, 0.3);
+        }
+
+        /* Hero */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 8rem 4rem;
+        }
+
+        .hero-content {
+            text-align: center;
+            max-width: 1200px;
+        }
+
+        .hero-label {
+            display: inline-block;
+            padding: 0.5rem 1.5rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 100px;
+            font-size: 0.75rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            margin-bottom: 3rem;
+            opacity: 0;
+            animation: fadeInUp 1s ease 0.5s forwards;
+        }
+
+        .hero h1 {
+            font-size: clamp(3rem, 10vw, 7rem);
+            font-weight: 900;
+            line-height: 0.95;
+            letter-spacing: -0.03em;
+            margin-bottom: 2rem;
+            opacity: 0;
+            animation: fadeInUp 1s ease 0.7s forwards;
+        }
+
+        .hero h1 .highlight {
+            display: block;
+            background: linear-gradient(135deg, #fff 0%, rgba(255, 255, 255, 0.6) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero-description {
+            font-size: 1.25rem;
+            color: rgba(255, 255, 255, 0.6);
+            max-width: 600px;
+            margin: 0 auto 4rem;
+            opacity: 0;
+            animation: fadeInUp 1s ease 0.9s forwards;
+        }
+
+        .hero-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            opacity: 0;
+            animation: fadeInUp 1s ease 1.1s forwards;
+        }
+
+        .btn {
+            padding: 1.125rem 2.5rem;
+            border-radius: 100px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-primary {
+            background: #fff;
+            color: #000;
+            border: none;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 20px 40px rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .scroll-indicator {
+            position: absolute;
+            bottom: 3rem;
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0;
+            animation: fadeIn 1s ease 2s forwards;
+        }
+
+        .scroll-line {
+            width: 1px;
+            height: 60px;
+            background: linear-gradient(to bottom, rgba(255, 255, 255, 0.5), transparent);
+            animation: scrollPulse 2s ease-in-out infinite;
+        }
+
+        @keyframes scrollPulse {
+            0%, 100% { transform: scaleY(1); opacity: 1; }
+            50% { transform: scaleY(0.5); opacity: 0.5; }
+        }
+
+        @keyframes fadeIn {
+            to { opacity: 1; }
+        }
+
+        /* Sections */
+        section {
+            padding: 10rem 4rem;
+        }
+
+        .section-header {
+            max-width: 800px;
+            margin-bottom: 6rem;
+        }
+
+        .section-label {
+            font-size: 0.75rem;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.5);
+            margin-bottom: 1.5rem;
+            display: block;
+        }
+
+        .section-title {
+            font-size: clamp(2.5rem, 6vw, 4rem);
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            line-height: 1.1;
+        }
+
+        /* Features */
+        .features {
+            background: #fafafa;
+            color: #000;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2px;
+            background: #000;
+        }
+
+        .feature-card {
+            background: #fafafa;
+            padding: 4rem 3rem;
+            transition: all 0.5s ease;
+        }
+
+        .feature-card:hover {
+            background: #fff;
+        }
+
+        .feature-number {
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            color: rgba(0, 0, 0, 0.3);
+            margin-bottom: 2rem;
+        }
+
+        .feature-card h3 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+
+        .feature-card p {
+            font-size: 1rem;
+            color: rgba(0, 0, 0, 0.6);
+            line-height: 1.7;
+        }
+
+        /* Process */
+        .process {
+            background: #000;
+            color: #fff;
+        }
+
+        .process-list {
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .process-item {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 4rem 0;
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            gap: 4rem;
+            align-items: center;
+            transition: all 0.4s ease;
+            cursor: pointer;
+        }
+
+        .process-item:hover {
+            padding-left: 2rem;
+        }
+
+        .process-number {
+            font-size: 0.875rem;
+            color: rgba(255, 255, 255, 0.3);
+            font-weight: 600;
+        }
+
+        .process-title {
+            font-size: 3rem;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+        }
+
+        .process-arrow {
+            font-size: 1.5rem;
+            color: rgba(255, 255, 255, 0.3);
+            transition: transform 0.3s ease;
+        }
+
+        .process-item:hover .process-arrow {
+            transform: translateX(10px);
+            color: #fff;
+        }
+
+        /* Stats */
+        .stats {
+            background: #fff;
+            color: #000;
+            text-align: center;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 4rem;
+        }
+
+        .stat-value {
+            font-size: 5rem;
+            font-weight: 900;
+            letter-spacing: -0.05em;
+            line-height: 1;
+            margin-bottom: 1rem;
+        }
+
+        .stat-label {
+            font-size: 0.875rem;
+            color: rgba(0, 0, 0, 0.5);
+            letter-spacing: 0.05em;
+        }
+
+        /* Pricing */
+        .pricing {
+            background: #fafafa;
+            color: #000;
+        }
+
+        .pricing-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 2rem;
+            margin-top: 4rem;
+        }
+
+        .pricing-card {
+            background: #fff;
+            padding: 3rem;
+            border-radius: 16px;
+            transition: all 0.4s ease;
+        }
+
+        .pricing-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.1);
+        }
+
+        .pricing-card.featured {
+            background: #000;
+            color: #fff;
+            position: relative;
+        }
+
+        .pricing-card.featured::before {
+            content: 'POPULAR';
+            position: absolute;
+            top: -12px;
+            right: 24px;
+            padding: 0.5rem 1rem;
+            background: #fff;
+            color: #000;
+            font-size: 0.625rem;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            border-radius: 100px;
+        }
+
+        .pricing-name {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .pricing-price {
+            font-size: 4rem;
+            font-weight: 900;
+            letter-spacing: -0.05em;
+            margin: 1.5rem 0;
+            line-height: 1;
+        }
+
+        .pricing-price span {
+            font-size: 1rem;
+            font-weight: 400;
+            opacity: 0.5;
+        }
+
+        .pricing-features {
+            list-style: none;
+            margin: 2rem 0;
+            padding-top: 2rem;
+            border-top: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        .pricing-card.featured .pricing-features {
+            border-top-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .pricing-features li {
+            padding: 0.5rem 0;
+            font-size: 0.875rem;
+            opacity: 0.7;
+        }
+
+        .pricing-card .btn {
+            width: 100%;
+            text-align: center;
+        }
+
+        .pricing-card.featured .btn-primary {
+            background: #fff;
+            color: #000;
+        }
+
+        /* CTA */
+        .cta {
+            background: #000;
+            color: #fff;
+            text-align: center;
+        }
+
+        .cta-content {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .cta h2 {
+            font-size: clamp(2rem, 5vw, 3.5rem);
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            margin-bottom: 1.5rem;
+        }
+
+        .cta p {
+            font-size: 1.125rem;
+            color: rgba(255, 255, 255, 0.6);
+            margin-bottom: 3rem;
+        }
+
+        /* Footer */
+        footer {
+            background: #000;
+            color: #fff;
+            padding: 4rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .footer-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .footer-links {
+            display: flex;
+            gap: 2rem;
+        }
+
+        .footer-links a {
+            color: rgba(255, 255, 255, 0.5);
+            text-decoration: none;
+            font-size: 0.875rem;
+            transition: color 0.3s ease;
+        }
+
+        .footer-links a:hover {
+            color: #fff;
+        }
+
+        .footer-copy {
+            color: rgba(255, 255, 255, 0.3);
+            font-size: 0.875rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            nav { padding: 1.5rem 2rem; }
+            .nav-menu { display: none; }
+            section { padding: 6rem 2rem; }
+            .features-grid { grid-template-columns: repeat(2, 1fr); }
+            .pricing-grid { grid-template-columns: repeat(2, 1fr); }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 3rem; }
+        }
+
+        @media (max-width: 768px) {
+            .hero { padding: 6rem 2rem; }
+            .features-grid { grid-template-columns: 1fr; }
+            .pricing-grid { grid-template-columns: 1fr; }
+            .process-item { grid-template-columns: 1fr; gap: 1rem; }
+            .process-title { font-size: 2rem; }
+            .process-arrow { display: none; }
+            .stat-value { font-size: 3rem; }
+            .footer-content { flex-direction: column; gap: 2rem; text-align: center; }
+        }
+    </style>
+</head>
+<body>
+    <div class="loader" id="loader">
+        <div class="loader-bar"></div>
+        <p class="loader-text">Loading</p>
+    </div>
+
+    <canvas id="bg-canvas"></canvas>
+
+    <nav>
+        <a href="#" class="logo">Vulnyx</a>
+        <ul class="nav-menu">
+            <li><a href="#features">Features</a></li>
+            <li><a href="#process">Process</a></li>
+            <li><a href="#pricing">Pricing</a></li>
+            <li><a href="http://localhost:8000">Dashboard</a></li>
+        </ul>
+        <a href="http://localhost:8000" class="nav-cta">Launch App</a>
+    </nav>
+
+    <section class="hero">
+        <div class="hero-content">
+            <div class="hero-label">AI-Powered Security Platform</div>
+            <h1>Find Zero-Day<span class="highlight">Vulnerabilities</span></h1>
+            <p class="hero-description">Autonomous AI agents hunt vulnerabilities in your code. 6-stage pipeline with real exploit generation and sandbox verification.</p>
+            <div class="hero-buttons">
+                <a href="http://localhost:8000" class="btn btn-primary">Start Scanning</a>
+                <a href="#process" class="btn btn-secondary">See How It Works</a>
+            </div>
+        </div>
+        <div class="scroll-indicator">
+            <div class="scroll-line"></div>
+        </div>
+    </section>
+
+    <section class="features" id="features">
+        <div class="section-header">
+            <span class="section-label">Features</span>
+            <h2 class="section-title">Everything you need to secure your applications</h2>
+        </div>
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-number">01</div>
+                <h3>Static Analysis</h3>
+                <p>Multi-language AST parsing detects injection flaws, crypto issues, and logic bugs at the source level.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-number">02</div>
+                <h3>Variant Hunter</h3>
+                <p>Matches vulnerability patterns against 47,000+ known exploits to find similar issues in your code.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-number">03</div>
+                <h3>Exploit Builder</h3>
+                <p>Generates working proof-of-concept exploits automatically with template-based payload crafting.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-number">04</div>
+                <h3>Sandbox Verification</h3>
+                <p>Tests exploits safely in isolated Docker containers before reporting to production systems.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-number">05</div>
+                <h3>Chain Constructor</h3>
+                <p>Builds multi-step attack chains from individual vulnerabilities to identify critical paths.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-number">06</div>
+                <h3>Professional Reports</h3>
+                <p>Detailed markdown reports with executive summaries and step-by-step remediation guides.</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="process" id="process">
+        <div class="section-header">
+            <span class="section-label">How It Works</span>
+            <h2 class="section-title">6-stage autonomous pipeline</h2>
+        </div>
+        <div class="process-list">
+            <div class="process-item"><div class="process-number">01</div><div class="process-title">Static Analysis</div><div class="process-arrow">→</div></div>
+            <div class="process-item"><div class="process-number">02</div><div class="process-title">Variant Hunter</div><div class="process-arrow">→</div></div>
+            <div class="process-item"><div class="process-number">03</div><div class="process-title">Exploit Builder</div><div class="process-arrow">→</div></div>
+            <div class="process-item"><div class="process-number">04</div><div class="process-title">Sandbox Verification</div><div class="process-arrow">→</div></div>
+            <div class="process-item"><div class="process-number">05</div><div class="process-title">Chain Constructor</div><div class="process-arrow">→</div></div>
+            <div class="process-item"><div class="process-number">06</div><div class="process-title">Report Generation</div><div class="process-arrow">→</div></div>
+        </div>
+    </section>
+
+    <section class="stats">
+        <div class="section-header" style="text-align: center; margin: 0 auto 6rem;">
+            <span class="section-label">Impact</span>
+            <h2 class="section-title">Trusted by security teams worldwide</h2>
+        </div>
+        <div class="stats-grid">
+            <div class="stat-item"><div class="stat-value">47K+</div><div class="stat-label">Exploits in Database</div></div>
+            <div class="stat-item"><div class="stat-value">99.2%</div><div class="stat-label">Detection Rate</div></div>
+            <div class="stat-item"><div class="stat-value">15sec</div><div class="stat-label">Average Scan Time</div></div>
+            <div class="stat-item"><div class="stat-value">24/7</div><div class="stat-label">Autonomous Scanning</div></div>
+        </div>
+    </section>
+
+    <section class="pricing" id="pricing">
+        <div class="section-header" style="text-align: center; margin: 0 auto 4rem;">
+            <span class="section-label">Pricing</span>
+            <h2 class="section-title">Simple, transparent pricing</h2>
+        </div>
+        <div class="pricing-grid">
+            <div class="pricing-card">
+                <div class="pricing-name">Starter</div>
+                <div class="pricing-price">$99<span>/mo</span></div>
+                <ul class="pricing-features"><li>10 scans/month</li><li>Static analysis</li><li>Basic reports</li><li>Email support</li></ul>
+                <a href="http://localhost:8000" class="btn btn-secondary">Start Trial</a>
+            </div>
+            <div class="pricing-card featured">
+                <div class="pricing-name">Pro</div>
+                <div class="pricing-price">$499<span>/mo</span></div>
+                <ul class="pricing-features"><li>100 scans/month</li><li>All 6 pipeline stages</li><li>Exploit generation</li><li>API access</li><li>Priority support</li></ul>
+                <a href="http://localhost:8000" class="btn btn-primary">Subscribe</a>
+            </div>
+            <div class="pricing-card">
+                <div class="pricing-name">Enterprise</div>
+                <div class="pricing-price">$2,999<span>/mo</span></div>
+                <ul class="pricing-features"><li>Unlimited scans</li><li>Custom integrations</li><li>Dedicated support</li><li>SLA guarantee</li></ul>
+                <a href="#" class="btn btn-secondary">Contact Sales</a>
+            </div>
+            <div class="pricing-card">
+                <div class="pricing-name">APT</div>
+                <div class="pricing-price">$9,999<span>/mo</span></div>
+                <ul class="pricing-features"><li>Zero-day hunting</li><li>Custom AI training</li><li>Consulting included</li><li>Red team support</li></ul>
+                <a href="#" class="btn btn-secondary">Contact Sales</a>
+            </div>
+        </div>
+    </section>
+
+    <section class="cta">
+        <div class="cta-content">
+            <h2>Ready to hunt vulnerabilities?</h2>
+            <p>Deploy AI-powered security scanning in minutes. No credit card required.</p>
+            <a href="http://localhost:8000" class="btn btn-primary">Get Started Free</a>
+        </div>
+    </section>
+
+    <footer>
+        <div class="footer-content">
+            <div class="footer-links">
+                <a href="#">Privacy</a>
+                <a href="#">Terms</a>
+                <a href="#">Documentation</a>
+                <a href="https://github.com/xxxoff/Hexor">GitHub</a>
+            </div>
+            <div class="footer-copy">© 2026 Vulnyx</div>
+        </div>
+    </footer>
+
+    <script>
+        window.addEventListener('load', () => {
+            setTimeout(() => document.getElementById('loader').classList.add('loaded'), 2000);
+        });
+
+        const canvas = document.getElementById('bg-canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+
+        function createParticles() {
+            particles = [];
+            for (let i = 0; i < 50; i++) {
+                particles.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    vx: (Math.random() - 0.5) * 0.5,
+                    vy: (Math.random() - 0.5) * 0.5,
+                    size: Math.random() * 2,
+                    opacity: Math.random() * 0.5 + 0.1
+                });
+            }
+        }
+
+        function drawParticles() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particles.forEach((p, i) => {
+                p.x += p.vx;
+                p.y += p.vy;
+                if (p.x < 0 || p.x > canvas.width) p.vx *= -1;
+                if (p.y < 0 || p.y > canvas.height) p.vy *= -1;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255, 255, 255, ${p.opacity})`;
+                ctx.fill();
+                particles.forEach((p2, j) => {
+                    if (i === j) return;
+                    const dist = Math.hypot(p.x - p2.x, p.y - p2.y);
+                    if (dist < 150) {
+                        ctx.beginPath();
+                        ctx.moveTo(p.x, p.y);
+                        ctx.lineTo(p2.x, p2.y);
+                        ctx.strokeStyle = `rgba(255, 255, 255, ${0.05 * (1 - dist / 150)})`;
+                        ctx.stroke();
+                    }
+                });
+            });
+            requestAnimationFrame(drawParticles);
+        }
+
+        window.addEventListener('resize', () => { resizeCanvas(); createParticles(); });
+        resizeCanvas();
+        createParticles();
+        drawParticles();
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.opacity = '1';
+                    entry.target.style.transform = 'translateY(0)';
+                }
+            });
+        }, { threshold: 0.1 });
+
+        document.querySelectorAll('.feature-card, .process-item, .stat-item, .pricing-card').forEach(el => {
+            el.style.opacity = '0';
+            el.style.transform = 'translateY(20px)';
+            el.style.transition = 'all 0.6s ease';
+            observer.observe(el);
+        });
+    </script>
+</body>
+</html>
