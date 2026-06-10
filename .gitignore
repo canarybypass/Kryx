@@ -21,3 +21,6 @@ data/hackerone/
 data/exploitdb/
 data/processed/*.jsonl
 data/processed/*.json
+
+# Scan artifacts
+backend/last_scan_result.json

@@ -39,42 +39,61 @@ class LLMClient:
         if not api_key:
             raise RuntimeError("OPENROUTER_API_KEY not set")
 
-        # Fallback models if primary fails
-        fallbacks = [
-            model,
-            "anthropic/claude-sonnet-4",
-            "openai/gpt-4o",
-            "google/gemini-2.5-pro",
-        ]
+        # Fallback models if primary fails. Configurable via env so the
+        # product can target paid models in prod while defaulting to free
+        # models that actually work pre-revenue.
+        env_fb = os.getenv("OPENROUTER_FALLBACKS")
+        if env_fb:
+            extra = [m.strip() for m in env_fb.split(",") if m.strip()]
+        else:
+            extra = [
+                "nvidia/nemotron-nano-9b-v2:free",
+                "google/gemma-4-31b-it:free",
+            ]
+        fallbacks = [model] + [m for m in extra if m != model]
 
+        last_err = "unknown"
         for fb_model in fallbacks:
             for attempt in range(3):
                 try:
                     async with httpx.AsyncClient(timeout=120) as client:
+                        payload = {
+                            "model": fb_model,
+                            "messages": [
+                                {"role": "system", "content": system},
+                                {"role": "user", "content": prompt},
+                            ],
+                        }
+                        # Only request strict JSON mode when explicitly asked;
+                        # many (esp. free) models reject response_format and
+                        # the caller-side parser already extracts JSON.
+                        if json_mode and os.getenv("OPENROUTER_JSON_MODE") == "1":
+                            payload["response_format"] = {"type": "json_object"}
                         r = await client.post(
                             "https://openrouter.ai/api/v1/chat/completions",
                             headers={
                                 "Authorization": f"Bearer {api_key}",
-                                "HTTP-Referer": "https://hexor.dev",
-                                "X-Title": "Hexor",
+                                "HTTP-Referer": "https://kryx.io",
+                                "X-Title": "Kryx",
                             },
-                            json={
-                                "model": fb_model,
-                                "messages": [
-                                    {"role": "system", "content": system},
-                                    {"role": "user", "content": prompt},
-                                ],
-                                "response_format": {"type": "json_object"} if json_mode else None,
-                            },
+                            json=payload,
                         )
                         if r.status_code == 429:
+                            last_err = f"{fb_model}: 429 rate-limited"
                             await asyncio.sleep(5 * (attempt + 1))
                             continue
                         r.raise_for_status()
-                        return r.json()["choices"][0]["message"]["content"]
-                except Exception:
+                        body = r.json()
+                        choices = body.get("choices")
+                        if not choices:
+                            last_err = f"{fb_model}: no choices ({str(body)[:120]})"
+                            await asyncio.sleep(2)
+                            continue
+                        return choices[0]["message"]["content"]
+                except Exception as e:
+                    last_err = f"{fb_model}: {type(e).__name__}: {str(e)[:120]}"
                     await asyncio.sleep(3)
-        raise RuntimeError("All models failed. Try again later.")
+        raise RuntimeError(f"All models failed. Last error — {last_err}")
 
     async def _anthropic(self, system: str, prompt: str, model: str) -> str:
         api_key = os.getenv("ANTHROPIC_API_KEY")

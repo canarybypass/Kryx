@@ -15,7 +15,31 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from db import User, get_db
 
-SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-production-use-32-chars-min")
+def _load_secret_key() -> str:
+    """Load JWT secret. Never fall back to a shared hardcoded default — a known
+    key lets anyone forge tokens. Require a strong key in prod; in dev, mint a
+    random ephemeral one (tokens won't survive a restart, which is fine)."""
+    key = os.getenv("SECRET_KEY")
+    weak_defaults = {
+        "change-me",
+        "change-me-in-production-use-32-chars-min",
+        "change-me-to-random-32-char-string",
+    }
+    if key and key not in weak_defaults and len(key) >= 32:
+        return key
+    if os.getenv("ENV", "dev").lower() in ("prod", "production"):
+        raise RuntimeError(
+            "SECRET_KEY is missing, weak, or a known default. Set a strong "
+            "(>=32 char) SECRET_KEY env var. Generate: python -c "
+            "'import secrets; print(secrets.token_urlsafe(48))'"
+        )
+    import secrets as _secrets
+    print("[auth] WARNING: SECRET_KEY not set — using a random ephemeral key "
+          "(dev only; tokens reset on restart).")
+    return _secrets.token_urlsafe(48)
+
+
+SECRET_KEY = _load_secret_key()
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))  # 24h
 

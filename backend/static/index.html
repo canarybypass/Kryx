@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vulnyx - AI Security Scanner</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: #e2e8f0;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+        h1 {
+            font-size: 3rem;
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+        .subtitle {
+            color: #94a3b8;
+            font-size: 1.1rem;
+        }
+        .card {
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            backdrop-filter: blur(10px);
+        }
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #94a3b8;
+        }
+        input, select {
+            width: 100%;
+            padding: 0.75rem;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            color: #e2e8f0;
+            font-size: 1rem;
+        }
+        input:focus, select:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+        button {
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 8px;
+            color: white;
+            font-size: 1rem;
+            cursor: pointer;
+            width: 100%;
+            font-weight: 600;
+            transition: transform 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+        }
+        .scans {
+            margin-top: 2rem;
+        }
+        .scan-item {
+            background: rgba(30, 41, 59, 0.5);
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        .scan-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+        .scan-id {
+            font-weight: 600;
+            color: #3b82f6;
+        }
+        .status {
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+        .status.completed { background: #065f46; color: #6ee7b7; }
+        .status.running { background: #1e40af; color: #93c5fd; }
+        .status.failed { background: #991b1b; color: #fca5a5; }
+        .vulns {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid #334155;
+        }
+        .vuln-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 0;
+        }
+        .severity-critical { color: #fca5a5; }
+        .severity-high { color: #fdba74; }
+        .severity-medium { color: #fcd34d; }
+        .severity-low { color: #86efac; }
+        .api-status {
+            text-align: center;
+            padding: 1rem;
+            margin-bottom: 2rem;
+            border-radius: 8px;
+        }
+        .api-status.connected {
+            background: rgba(6, 95, 70, 0.3);
+            border: 1px solid #065f46;
+        }
+        .api-status.error {
+            background: rgba(153, 27, 27, 0.3);
+            border: 1px solid #991b1b;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>⚡ Vulnyx</h1>
+            <p class="subtitle">AI-Powered Security Scanning Platform</p>
+        </header>
+
+        <div id="apiStatus" class="api-status">
+            Checking API connection...
+        </div>
+
+        <div class="card">
+            <h2 style="margin-bottom: 1.5rem;">🎯 New Scan</h2>
+            <form id="scanForm">
+                <div class="form-group">
+                    <label>Target URL or Path</label>
+                    <input type="text" id="target" placeholder="https://example.com or /path/to/code" required>
+                </div>
+                <div class="form-group">
+                    <label>Scan Type</label>
+                    <select id="scanType">
+                        <option value="repo">Repository</option>
+                        <option value="web">Web Application</option>
+                        <option value="source">Source Code</option>
+                    </select>
+                </div>
+                <button type="submit">🚀 Start Scan</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <h2 style="margin-bottom: 1.5rem;">📊 Recent Scans</h2>
+            <div id="scansList">
+                <p style="color: #64748b; text-align: center;">No scans yet. Start your first scan above!</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:8000';
+        
+        // Check API health
+        async function checkAPI() {
+            try {
+                const res = await fetch(`${API_URL}/health`);
+                const data = await res.json();
+                document.getElementById('apiStatus').className = 'api-status connected';
+                document.getElementById('apiStatus').innerHTML = `✅ Connected to Vulnyx API v2.0`;
+            } catch (err) {
+                document.getElementById('apiStatus').className = 'api-status error';
+                document.getElementById('apiStatus').innerHTML = `❌ Cannot connect to API at ${API_URL}`;
+            }
+        }
+        
+        // Load scans
+        async function loadScans() {
+            try {
+                const res = await fetch(`${API_URL}/api/scans`);
+                const scans = await res.json();
+                
+                if (scans.length === 0) {
+                    document.getElementById('scansList').innerHTML = 
+                        '<p style="color: #64748b; text-align: center;">No scans yet. Start your first scan above!</p>';
+                    return;
+                }
+                
+                let html = '';
+                scans.forEach(scan => {
+                    const vulnsHtml = (scan.vulnerabilities || []).map(v => `
+                        <div class="vuln-item">
+                            <span>${v.name}</span>
+                            <span class="severity-${v.severity}">${v.severity.toUpperCase()}</span>
+                        </div>
+                    `).join('');
+                    
+                    html += `
+                        <div class="scan-item">
+                            <div class="scan-header">
+                                <span class="scan-id">Scan #${scan.id}</span>
+                                <span class="status ${scan.status}">${scan.status}</span>
+                            </div>
+                            <div style="color: #94a3b8; font-size: 0.9rem;">
+                                Target: ${scan.target}<br>
+                                Created: ${scan.created_at}
+                            </div>
+                            ${scan.vulnerabilities ? `
+                                <div class="vulns">
+                                    <h4 style="margin-bottom: 0.5rem;">Vulnerabilities Found: ${scan.stats?.total_findings || 0}</h4>
+                                    ${vulnsHtml}
+                                </div>
+                            ` : ''}
+                        </div>
+                    `;
+                });
+                
+                document.getElementById('scansList').innerHTML = html;
+            } catch (err) {
+                document.getElementById('scansList').innerHTML = 
+                    '<p style="color: #fca5a5; text-align: center;">Error loading scans</p>';
+            }
+        }
+        
+        // Create scan
+        document.getElementById('scanForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const target = document.getElementById('target').value;
+            const scanType = document.getElementById('scanType').value;
+            
+            try {
+                const res = await fetch(`${API_URL}/api/v2/scans`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ target, target_type: scanType })
+                });
+                
+                if (res.ok) {
+                    document.getElementById('target').value = '';
+                    loadScans();
+                } else {
+                    alert('Failed to create scan');
+                }
+            } catch (err) {
+                alert('Error creating scan: ' + err.message);
+            }
+        });
+        
+        // Initial load
+        checkAPI();
+        loadScans();
+        
+        // Refresh every 5 seconds
+        setInterval(loadScans, 5000);
+    </script>
+</body>
+</html>
