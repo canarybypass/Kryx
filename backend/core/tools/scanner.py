@@ -290,6 +290,7 @@ async def _http_probe(url: str) -> dict:
     else:
         urls = [url]
 
+    last_err = None
     for u in urls:
         try:
             async with httpx.AsyncClient(timeout=10, follow_redirects=True, verify=False) as client:
@@ -307,6 +308,19 @@ async def _http_probe(url: str) -> dict:
 
                 missing = [k for k, v in security_headers.items() if not v]
 
+                # Parse the body so hunters can SEE the app: links, forms,
+                # parameters and reflected content. Without this the agents are
+                # blind to endpoints like /user?id= or /search?q=.
+                import re as _re
+                body = r.text or ""
+                links = sorted({l for l in _re.findall(
+                    r'(?:href|src|action)=["\']([^"\'#> ]+)', body) if l})[:40]
+                params = sorted(set(
+                    _re.findall(r'[?&]([A-Za-z0-9_\[\]]+)=', body)
+                    + _re.findall(r'<input[^>]+name=["\']([^"\']+)', body, _re.I)
+                ))[:30]
+                forms = _re.findall(r'<form[^>]*>', body, _re.I)[:10]
+
                 return {
                     "url": u,
                     "status": r.status_code,
@@ -320,11 +334,18 @@ async def _http_probe(url: str) -> dict:
                         for c, v in r.cookies.items()
                     ],
                     "headers_count": len(headers),
+                    "body_preview": body[:1500],
+                    "links": links,
+                    "params_seen": params,
+                    "forms": forms,
+                    "content_type": headers.get("content-type"),
                 }
         except Exception as e:
+            last_err = f"{type(e).__name__}: {e}".strip()
             continue
 
-    return {"error": f"Could not connect to {url}"}
+    return {"error": f"Could not connect to {url}", "reason": last_err or "unknown",
+            "tried": urls, "hint": "Target unreachable from scanner host (firewall/DNS/down) — not necessarily a vuln."}
 
 
 async def _ssl_audit(host: str) -> dict:
