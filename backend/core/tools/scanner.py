@@ -51,6 +51,11 @@ TOOLS_SCHEMA = [
         "parameters": {"url": "string"},
     },
     {
+        "name": "xss_probe",
+        "description": "Deterministically test reflected XSS: injects a unique marker into each URL query parameter and reports whether it is reflected UNescaped (real XSS) vs escaped (safe). Pass a URL with parameters, e.g. /search?q=test.",
+        "parameters": {"url": "string (URL with query parameters)"},
+    },
+    {
         "name": "ssl_audit",
         "description": "SSL/TLS audit: certificate info, cipher suites, vulnerabilities",
         "parameters": {"host": "string"},
@@ -115,6 +120,7 @@ async def run_tool(name: str, params: dict) -> dict:
         "subdomain_enum": _subdomain_enum,
         "dir_bruteforce": _dir_bruteforce,
         "sensitive_files": _sensitive_files,
+        "xss_probe": _xss_probe,
         "http_probe": _http_probe,
         "ssl_audit": _ssl_audit,
         "sqlmap_check": _sqlmap_check,
@@ -403,6 +409,63 @@ async def _http_probe(url: str) -> dict:
 
     return {"error": f"Could not connect to {url}", "reason": last_err or "unknown",
             "tried": urls, "hint": "Target unreachable from scanner host (firewall/DNS/down) — not necessarily a vuln."}
+
+
+async def _xss_probe(url: str) -> dict:
+    """Test reflected XSS deterministically: inject a unique marker carrying
+    HTML-breaking chars into each query parameter and check whether it comes
+    back UNescaped (real XSS) vs escaped (safe). Pass a URL with parameters,
+    e.g. http://host/search?q=test"""
+    import httpx
+    import secrets
+    from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+
+    if not url.startswith("http"):
+        url = f"http://{url}"
+    parsed = urlparse(url)
+    params = parse_qs(parsed.query, keep_blank_values=True)
+
+    if not params:
+        return {
+            "url": url, "vulnerable": False, "tested_params": [],
+            "note": "No query parameters to test. Provide a URL with a param, e.g. /search?q=test",
+        }
+
+    def _ctx(body: str, needle: str) -> str:
+        i = body.find(needle)
+        return body[max(0, i - 40): i + 80] if i >= 0 else ""
+
+    results = []
+    async with httpx.AsyncClient(timeout=8, follow_redirects=True, verify=False) as client:
+        for pname in params:
+            token = secrets.token_hex(3)
+            marker = f"kx{token}"
+            payload = f"{marker}<svg/onload=alert(1)>\"'"
+            test_params = {k: v[0] for k, v in params.items()}
+            test_params[pname] = payload
+            test_url = urlunparse(parsed._replace(query=urlencode(test_params)))
+            try:
+                r = await client.get(test_url)
+                body = r.text
+                raw = f"{marker}<svg/onload" in body          # dangerous '<' survived
+                escaped = (f"{marker}&lt;svg" in body) or (f"{marker}%3csvg" in body.lower())
+                results.append({
+                    "param": pname,
+                    "reflected_unescaped": raw,
+                    "reflected_but_escaped": escaped and not raw,
+                    "context": _ctx(body, marker),
+                    "payload": payload,
+                })
+            except Exception as e:
+                results.append({"param": pname, "error": str(e)})
+
+    vulnerable = any(r.get("reflected_unescaped") for r in results)
+    return {
+        "url": url,
+        "vulnerable": vulnerable,
+        "tested_params": list(params.keys()),
+        "results": results,
+    }
 
 
 async def _ssl_audit(host: str) -> dict:
