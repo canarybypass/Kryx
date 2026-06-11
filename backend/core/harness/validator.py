@@ -28,11 +28,31 @@ class ValidatorStage:
         validated = []
         for finding, result in zip(self.findings, results):
             if isinstance(result, Exception):
+                # Validator errored — don't silently lose a tool-confirmed bug.
+                if finding.get("exploitability") == "confirmed":
+                    finding["validation_note"] = "validator error; kept (tool-confirmed)"
+                    validated.append(finding)
                 continue
-            if result.get("verdict") == "confirmed":
+
+            verdict = result.get("verdict")
+
+            if verdict == "confirmed":
                 finding["validated"] = True
                 if result.get("adjusted_severity"):
                     finding["severity"] = result["adjusted_severity"]
+                validated.append(finding)
+
+            elif verdict == "rejected":
+                # Explicit hallucination call — drop it.
+                continue
+
+            elif finding.get("exploitability") == "confirmed":
+                # Validator was merely unsure (needs_more_evidence / unparsed),
+                # but the hunter confirmed this with a tool. A deterministic tool
+                # verdict is a fact, not an opinion — keep it rather than lose a
+                # real bug to model variance. Flag it as needing a second look.
+                finding["validated"] = True
+                finding["validation_note"] = f"tool-confirmed; validator: {verdict or 'unparsed'}"
                 validated.append(finding)
 
         return validated
