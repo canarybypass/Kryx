@@ -46,6 +46,11 @@ TOOLS_SCHEMA = [
         "parameters": {"url": "string"},
     },
     {
+        "name": "sensitive_files",
+        "description": "Directly probe for commonly-exposed sensitive files (.env, .git/config, config.php, backups, db dumps, secrets). Use this for config/secret exposure — it catches files dir_bruteforce misses.",
+        "parameters": {"url": "string"},
+    },
+    {
         "name": "ssl_audit",
         "description": "SSL/TLS audit: certificate info, cipher suites, vulnerabilities",
         "parameters": {"host": "string"},
@@ -109,6 +114,7 @@ async def run_tool(name: str, params: dict) -> dict:
         "nuclei_scan": _nuclei_scan,
         "subdomain_enum": _subdomain_enum,
         "dir_bruteforce": _dir_bruteforce,
+        "sensitive_files": _sensitive_files,
         "http_probe": _http_probe,
         "ssl_audit": _ssl_audit,
         "sqlmap_check": _sqlmap_check,
@@ -280,6 +286,57 @@ async def _dir_bruteforce(url: str) -> dict:
                 pass
 
     return {"url": url, "found": findings[:50], "count": len(findings)}
+
+
+SENSITIVE_PATHS = [
+    "/.env", "/.env.local", "/.env.backup", "/.env.bak",
+    "/.git/config", "/.git/HEAD", "/.svn/entries", "/.hg/hgrc",
+    "/config.php", "/config.php.bak", "/config.json", "/settings.py",
+    "/wp-config.php", "/wp-config.php.bak", "/.aws/credentials",
+    "/.ssh/id_rsa", "/backup.zip", "/backup.tar.gz", "/backup.sql",
+    "/db.sql", "/dump.sql", "/database.sql", "/.DS_Store",
+    "/phpinfo.php", "/info.php", "/server-status", "/.htpasswd",
+    "/composer.json", "/package.json", "/.npmrc", "/docker-compose.yml",
+    "/credentials.json", "/secrets.json", "/.dockerenv",
+]
+
+
+async def _sensitive_files(url: str) -> dict:
+    """Directly probe a curated list of commonly-exposed sensitive files
+    (config, VCS metadata, backups, secrets). Catches files generic
+    wordlist bruteforce misses, e.g. /.env."""
+    import httpx
+    base = url.rstrip("/")
+    if not base.startswith("http"):
+        base = f"http://{base}"
+
+    async with httpx.AsyncClient(timeout=8, follow_redirects=False, verify=False) as client:
+        async def check(path):
+            try:
+                r = await client.get(base + path)
+                if r.status_code == 200 and r.content:
+                    head = r.text[:200].lower()
+                    looks_html = "<html" in head or "<!doctype" in head
+                    return {
+                        "path": path,
+                        "status": 200,
+                        "size": len(r.content),
+                        "preview": r.text[:300],
+                        "likely_real": not looks_html,  # HTML 200 is often a catch-all
+                    }
+            except Exception:
+                return None
+            return None
+
+        results = await asyncio.gather(*[check(p) for p in SENSITIVE_PATHS])
+
+    exposed = [r for r in results if r]
+    return {
+        "url": base,
+        "exposed_files": exposed,
+        "count": len(exposed),
+        "checked": len(SENSITIVE_PATHS),
+    }
 
 
 async def _http_probe(url: str) -> dict:

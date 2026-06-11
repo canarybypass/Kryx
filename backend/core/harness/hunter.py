@@ -32,7 +32,7 @@ ATTACK_CLASSES = [
     {
         "name": "config_exposure",
         "description": "Exposed config files, .git, .env, backup files, debug endpoints",
-        "tools": ["dir_bruteforce", "http_probe", "nuclei_scan"],
+        "tools": ["sensitive_files", "dir_bruteforce", "http_probe", "nuclei_scan"],
         "priority": "high",
     },
     {
@@ -50,7 +50,7 @@ ATTACK_CLASSES = [
     {
         "name": "info_disclosure",
         "description": "Information leakage, verbose errors, exposed APIs, swagger/graphql",
-        "tools": ["dir_bruteforce", "http_probe", "whatweb", "browser_probe"],
+        "tools": ["sensitive_files", "dir_bruteforce", "http_probe", "whatweb", "browser_probe"],
         "priority": "medium",
     },
     {
