@@ -387,19 +387,30 @@ async def _sqlmap_check(url: str) -> dict:
     if not _available("sqlmap"):
         return {"error": "sqlmap not installed. Run: sudo apt install sqlmap"}
 
+    # --flush-session: never trust a cached verdict from a prior (possibly
+    # interrupted) run. Drop slow time-based(T) technique to fit the budget.
     result = await _run([
         "sqlmap", "-u", url,
-        "--batch", "--random-agent",
+        "--batch", "--random-agent", "--flush-session",
         "--level", "2", "--risk", "2",
-        "--technique", "BEUSTQ",
-    ], timeout=120)
+        "--technique", "BEUS",
+    ], timeout=150)
 
-    vulnerable = "vulnerable" in result["stdout"].lower() and "identified the following" in result["stdout"].lower()
+    out = result.get("stdout", "")
+    low = out.lower()
+    vulnerable = ("is vulnerable" in low) or ("parameter" in low and "injectable" in low)
+
+    # Pull the injection summary block as evidence.
+    evidence = ""
+    if "Parameter:" in out:
+        evidence = out[out.index("Parameter:"):][:1200]
 
     return {
         "url": url,
         "vulnerable": vulnerable,
-        "raw": result["stdout"][:3000],
+        "evidence": evidence,
+        "error": result.get("error"),
+        "raw": out[:3000],
     }
 
 
