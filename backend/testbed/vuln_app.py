@@ -63,7 +63,8 @@ class Handler(BaseHTTPRequestHandler):
                             "<a href='/user?id=1'>user</a> "
                             "<a href='/guestbook'>guestbook</a> "
                             "<a href='/page#name=hi'>page</a> "
-                            "<a href='/api/account?id=1'>my account</a>")
+                            "<a href='/api/account?id=1'>my account</a> "
+                            "<a href='/fetch?url=http://example.com'>fetch</a>")
 
         elif u.path == "/guestbook":                       # stored XSS
             items = "".join(f"<li>{c}</li>" for c in COMMENTS)  # unescaped on purpose
@@ -86,6 +87,16 @@ class Handler(BaseHTTPRequestHandler):
         elif u.path == "/search":                          # reflected XSS
             term = q.get("q", [""])[0]
             self._send(200, f"<h2>Results for: {term}</h2>")  # unescaped on purpose
+
+        elif u.path == "/fetch":                           # SSRF
+            # Server fetches an attacker-controlled URL with no allowlist.
+            target = q.get("url", [""])[0]
+            try:
+                import urllib.request as _r
+                data = _r.urlopen(target, timeout=4).read()[:500]
+                self._send(200, b"<pre>" + data + b"</pre>")
+            except Exception as e:
+                self._send(200, f"<pre>fetch error: {e}</pre>")
 
         elif u.path == "/api/account":                     # IDOR / BOLA
             # "Logged in" as user 1 via cookie, but NO ownership check:

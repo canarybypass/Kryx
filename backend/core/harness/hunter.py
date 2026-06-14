@@ -38,7 +38,7 @@ ATTACK_CLASSES = [
     {
         "name": "cors_ssrf",
         "description": "CORS misconfig, SSRF, open redirect, server-side request issues",
-        "tools": ["http_probe", "nuclei_scan", "browser_probe"],
+        "tools": ["ssrf_probe", "http_probe", "nuclei_scan", "browser_probe"],
         "priority": "high",
     },
     {

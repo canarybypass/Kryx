@@ -66,6 +66,11 @@ TOOLS_SCHEMA = [
         "parameters": {"url": "string (URL containing a numeric object id)"},
     },
     {
+        "name": "ssrf_probe",
+        "description": "Test SSRF (server-side request forgery) out-of-band: passes a unique listener URL as each parameter and confirms the vuln if the target server connects back. Catches blind SSRF. Use on params that may take a URL/host (url=, dest=, img=, callback=, ...).",
+        "parameters": {"url": "string (URL with query parameters)"},
+    },
+    {
         "name": "ssl_audit",
         "description": "SSL/TLS audit: certificate info, cipher suites, vulnerabilities",
         "parameters": {"host": "string"},
@@ -133,6 +138,7 @@ async def run_tool(name: str, params: dict) -> dict:
         "xss_probe": _xss_probe,
         "dom_xss_probe": _dom_xss_probe,
         "idor_probe": _idor_probe,
+        "ssrf_probe": _ssrf_probe,
         "http_probe": _http_probe,
         "ssl_audit": _ssl_audit,
         "sqlmap_check": _sqlmap_check,
@@ -639,6 +645,83 @@ async def _dom_xss_probe(url: str) -> dict:
         "vulnerable": len(findings) > 0,
         "findings": findings,
         "note": "DOM XSS via headless browser — payload executed and set a window flag.",
+    }
+
+
+async def _ssrf_probe(url: str) -> dict:
+    """Test SSRF out-of-band: start a local listener, pass its unique URL as
+    each candidate parameter, and if the TARGET server connects back to our
+    listener it fetched an attacker-controlled URL => SSRF confirmed. Catches
+    blind SSRF (no response body needed). Real external targets need a public
+    collaborator host; for localhost/internal targets this listener works."""
+    import httpx
+    import secrets
+    import asyncio
+    from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+
+    if not url.startswith("http"):
+        url = f"http://{url}"
+    parsed = urlparse(url)
+    qs = parse_qs(parsed.query, keep_blank_values=True)
+    if not qs:
+        return {"url": url, "vulnerable": False,
+                "note": "No query parameters to test for SSRF."}
+
+    tokens, hits = set(), set()
+
+    async def handle(reader, writer):
+        try:
+            data = await asyncio.wait_for(reader.read(2048), timeout=2)
+            text = data.decode("latin1", "replace")
+            for tok in tokens:
+                if tok in text:
+                    hits.add(tok)
+        except Exception:
+            pass
+        finally:
+            try:
+                writer.write(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok")
+                await writer.drain()
+            except Exception:
+                pass
+            try:
+                writer.close()
+            except Exception:
+                pass
+
+    server = await asyncio.start_server(handle, "127.0.0.1", 0)
+    port = server.sockets[0].getsockname()[1]
+
+    # Test URL-looking params first.
+    url_kw = ("url", "uri", "link", "fetch", "dest", "redirect", "next", "callback",
+              "target", "feed", "img", "image", "load", "file", "proxy", "site", "host", "domain")
+    params = sorted(qs, key=lambda k: 0 if any(w in k.lower() for w in url_kw) else 1)
+
+    findings = []
+    async with server:
+        async with httpx.AsyncClient(timeout=8, follow_redirects=True, verify=False) as client:
+            for pname in params:
+                token = "kx" + secrets.token_hex(4)
+                tokens.add(token)
+                payload = f"http://127.0.0.1:{port}/{token}"
+                tp = {k: v[0] for k, v in qs.items()}
+                tp[pname] = payload
+                turl = urlunparse(parsed._replace(query=urlencode(tp)))
+                try:
+                    await client.get(turl)
+                except Exception:
+                    pass
+                await asyncio.sleep(0.6)  # let the target call back
+                if token in hits:
+                    findings.append({"param": pname, "payload": payload,
+                                     "proof": "target server connected to our listener (fetched our URL)"})
+
+    return {
+        "url": url,
+        "vulnerable": len(findings) > 0,
+        "findings": findings,
+        "tested_params": list(qs.keys()),
+        "note": "OOB SSRF: target fetched an attacker-controlled URL. Real external targets need a public collaborator.",
     }
 
 
