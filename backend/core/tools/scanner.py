@@ -52,8 +52,13 @@ TOOLS_SCHEMA = [
     },
     {
         "name": "xss_probe",
-        "description": "Deterministically test reflected XSS: injects a unique marker into each URL query parameter and reports whether it is reflected UNescaped (real XSS) vs escaped (safe). Pass a URL with parameters, e.g. /search?q=test.",
-        "parameters": {"url": "string (URL with query parameters)"},
+        "description": "Deterministically test reflected & stored XSS: injects a unique marker into URL query params and into page forms (POST), and reports whether it comes back UNescaped (real XSS) vs escaped (safe). Pass a URL with parameters and/or a form, e.g. /search?q=test or /guestbook.",
+        "parameters": {"url": "string (URL with query parameters and/or a form)"},
+    },
+    {
+        "name": "dom_xss_probe",
+        "description": "Detect DOM-based XSS using a real headless browser (executes JS). Injects a payload into location.hash and query params; if it executes client-side it is confirmed. Use for SPAs / JS-heavy pages where xss_probe (no JS) can't see the sink.",
+        "parameters": {"url": "string (URL, optionally with #hash or ?params)"},
     },
     {
         "name": "ssl_audit",
@@ -121,6 +126,7 @@ async def run_tool(name: str, params: dict) -> dict:
         "dir_bruteforce": _dir_bruteforce,
         "sensitive_files": _sensitive_files,
         "xss_probe": _xss_probe,
+        "dom_xss_probe": _dom_xss_probe,
         "http_probe": _http_probe,
         "ssl_audit": _ssl_audit,
         "sqlmap_check": _sqlmap_check,
@@ -493,6 +499,67 @@ async def _xss_probe(url: str) -> dict:
         "vulnerable": len(findings) > 0,
         "findings": findings,
         "note": "Tested GET params + forms (reflected & stored). DOM XSS requires browser_probe.",
+    }
+
+
+async def _dom_xss_probe(url: str) -> dict:
+    """Detect DOM-based XSS with a headless browser. The payload never reaches
+    the server — it executes client-side. We inject a payload that, if it runs,
+    sets a unique window flag; then we read the flag back. Flag set => our input
+    executed as JS (real DOM XSS). Covers location.hash and query-param sinks
+    (innerHTML, document.write, eval, ...)."""
+    try:
+        from playwright.async_api import async_playwright
+    except ImportError:
+        return {"error": "playwright not installed. Run: playwright install chromium"}
+    import secrets
+    from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
+
+    if not url.startswith("http"):
+        url = f"http://{url}"
+
+    token = "kx" + secrets.token_hex(4)
+    # <img onerror> fires even when inserted via innerHTML (where <script> won't).
+    payload = f"<img src=x onerror=\"window.__kx='{token}'\">"
+    parsed = urlparse(url)
+
+    candidates = [
+        ("hash:name=", urlunparse(parsed._replace(fragment="name=" + quote(payload, safe="")))),
+        ("hash:raw", urlunparse(parsed._replace(fragment=quote(payload, safe="")))),
+    ]
+    qs = parse_qs(parsed.query, keep_blank_values=True)
+    for p in qs:
+        tp = {k: v[0] for k, v in qs.items()}
+        tp[p] = payload
+        candidates.append((f"query:{p}", urlunparse(parsed._replace(query=urlencode(tp)))))
+
+    findings = []
+    async with async_playwright() as pw:
+        browser = await pw.chromium.launch(headless=True, args=["--no-sandbox"])
+        try:
+            for vector, turl in candidates:
+                page = await browser.new_page()
+                try:
+                    await page.goto(turl, wait_until="load", timeout=15000)
+                    await page.wait_for_timeout(400)  # let onerror fire
+                    flag = await page.evaluate("window.__kx || ''")
+                    if flag == token:
+                        findings.append({"type": "dom", "vector": vector,
+                                         "url": turl, "payload": payload})
+                except Exception:
+                    pass
+                finally:
+                    await page.close()
+                if findings:
+                    break
+        finally:
+            await browser.close()
+
+    return {
+        "url": url,
+        "vulnerable": len(findings) > 0,
+        "findings": findings,
+        "note": "DOM XSS via headless browser — payload executed and set a window flag.",
     }
 
 

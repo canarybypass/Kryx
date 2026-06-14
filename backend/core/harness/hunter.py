@@ -20,7 +20,7 @@ ATTACK_CLASSES = [
     {
         "name": "xss_csrf",
         "description": "Reflected/stored/DOM XSS, CSRF vulnerabilities",
-        "tools": ["xss_probe", "http_probe", "browser_probe"],
+        "tools": ["xss_probe", "dom_xss_probe", "http_probe", "browser_probe"],
         "priority": "high",
     },
     {
