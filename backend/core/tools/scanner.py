@@ -61,6 +61,11 @@ TOOLS_SCHEMA = [
         "parameters": {"url": "string (URL, optionally with #hash or ?params)"},
     },
     {
+        "name": "idor_probe",
+        "description": "Test IDOR / BOLA (broken object-level authorization): given a URL with a numeric object id (e.g. /api/account?id=1 or /order/5), requests neighboring ids and reports if distinct per-object records are accessible without authorization. Top API vulnerability; scanners miss it.",
+        "parameters": {"url": "string (URL containing a numeric object id)"},
+    },
+    {
         "name": "ssl_audit",
         "description": "SSL/TLS audit: certificate info, cipher suites, vulnerabilities",
         "parameters": {"host": "string"},
@@ -127,6 +132,7 @@ async def run_tool(name: str, params: dict) -> dict:
         "sensitive_files": _sensitive_files,
         "xss_probe": _xss_probe,
         "dom_xss_probe": _dom_xss_probe,
+        "idor_probe": _idor_probe,
         "http_probe": _http_probe,
         "ssl_audit": _ssl_audit,
         "sqlmap_check": _sqlmap_check,
@@ -499,6 +505,79 @@ async def _xss_probe(url: str) -> dict:
         "vulnerable": len(findings) > 0,
         "findings": findings,
         "note": "Tested GET params + forms (reflected & stored). DOM XSS requires browser_probe.",
+    }
+
+
+async def _idor_probe(url: str) -> dict:
+    """Test IDOR / BOLA (broken object-level authorization). Find a numeric
+    object id in the URL, request neighboring ids, and check whether distinct
+    per-object records come back. A page that differs only by the id number is
+    NOT flagged; only genuinely different records (different owner/data) count.
+    Full proof needs two identities — anonymous access to distinct records is a
+    strong IDOR signal when the endpoint should be access-controlled."""
+    import httpx
+    from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+    from difflib import SequenceMatcher
+
+    if not url.startswith("http"):
+        url = f"http://{url}"
+    parsed = urlparse(url)
+    qs = parse_qs(parsed.query, keep_blank_values=True)
+
+    # Locate a numeric object id: query param first, else last path segment.
+    id_param, base_id, seg_idx = None, None, None
+    for k, v in qs.items():
+        if v and v[0].lstrip("-").isdigit():
+            id_param, base_id = k, int(v[0])
+            break
+    if base_id is None:
+        segs = parsed.path.split("/")
+        for i in range(len(segs) - 1, -1, -1):
+            if segs[i].isdigit():
+                seg_idx, base_id = i, int(segs[i])
+                break
+    if base_id is None:
+        return {"url": url, "vulnerable": False,
+                "note": "No numeric object id in URL. Use e.g. /api/account?id=1 or /order/5"}
+
+    def build(new_id):
+        if id_param is not None:
+            tp = {k: v[0] for k, v in qs.items()}
+            tp[id_param] = str(new_id)
+            return urlunparse(parsed._replace(query=urlencode(tp)))
+        segs = parsed.path.split("/")
+        segs[seg_idx] = str(new_id)
+        return urlunparse(parsed._replace(path="/".join(segs)))
+
+    async with httpx.AsyncClient(timeout=8, follow_redirects=True, verify=False) as client:
+        async def fetch(i):
+            try:
+                r = await client.get(build(i))
+                return {"id": i, "status": r.status_code, "body": r.text}
+            except Exception:
+                return {"id": i, "status": 0, "body": ""}
+
+        base = await fetch(base_id)
+        others = [await fetch(i) for i in (base_id - 2, base_id - 1, base_id + 1, base_id + 2, base_id + 3)
+                  if i != base_id and i >= 0]
+
+    accessible = []
+    for o in others:
+        if o["status"] == 200 and o["body"]:
+            ratio = SequenceMatcher(None, base.get("body", ""), o["body"]).ratio()
+            if ratio < 0.95:  # genuinely different record, not just a reflected id
+                accessible.append({"id": o["id"], "diff_ratio": round(ratio, 2),
+                                   "preview": o["body"][:140]})
+
+    vulnerable = len(accessible) >= 2
+    return {
+        "url": url,
+        "vulnerable": vulnerable,
+        "id_param": id_param or (f"path segment #{seg_idx}" if seg_idx is not None else None),
+        "base_id": base_id,
+        "other_records_accessible": accessible,
+        "confidence": "high" if vulnerable else "low",
+        "note": "Distinct per-id records returned without auth => IDOR/BOLA. Full proof needs 2 identities.",
     }
 
 

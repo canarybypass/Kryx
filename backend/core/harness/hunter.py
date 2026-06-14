@@ -25,8 +25,8 @@ ATTACK_CLASSES = [
     },
     {
         "name": "auth_session",
-        "description": "Authentication bypass, session fixation, JWT issues, weak password policies",
-        "tools": ["http_probe", "dir_bruteforce", "browser_probe"],
+        "description": "Broken access control: IDOR/BOLA, authentication bypass, session fixation, JWT issues, privilege escalation",
+        "tools": ["idor_probe", "http_probe", "dir_bruteforce", "browser_probe"],
         "priority": "critical",
     },
     {

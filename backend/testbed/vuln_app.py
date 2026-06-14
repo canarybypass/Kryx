@@ -11,11 +11,20 @@ Vulnerabilities planted (on purpose):
 """
 import sqlite3
 import html
+import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
 # In-memory store for the stored-XSS guestbook (planted vuln).
 COMMENTS = []
+
+# Private per-user accounts. /api/account?id=N returns any of these with NO
+# ownership check -> IDOR / BOLA (planted vuln).
+ACCOUNTS = {
+    1: {"owner": "admin", "balance": 100000, "private_token": "tok_admin_SECRET"},
+    2: {"owner": "alice", "balance": 4200, "private_token": "tok_alice_SECRET"},
+    3: {"owner": "bob", "balance": 999, "private_token": "tok_bob_SECRET"},
+}
 
 DB = sqlite3.connect(":memory:", check_same_thread=False)
 DB.execute("CREATE TABLE users (id INTEGER, name TEXT, email TEXT, secret TEXT)")
@@ -53,7 +62,8 @@ class Handler(BaseHTTPRequestHandler):
                             "<a href='/search?q=hi'>search</a> "
                             "<a href='/user?id=1'>user</a> "
                             "<a href='/guestbook'>guestbook</a> "
-                            "<a href='/page#name=hi'>page</a>")
+                            "<a href='/page#name=hi'>page</a> "
+                            "<a href='/api/account?id=1'>my account</a>")
 
         elif u.path == "/guestbook":                       # stored XSS
             items = "".join(f"<li>{c}</li>" for c in COMMENTS)  # unescaped on purpose
@@ -76,6 +86,19 @@ class Handler(BaseHTTPRequestHandler):
         elif u.path == "/search":                          # reflected XSS
             term = q.get("q", [""])[0]
             self._send(200, f"<h2>Results for: {term}</h2>")  # unescaped on purpose
+
+        elif u.path == "/api/account":                     # IDOR / BOLA
+            # "Logged in" as user 1 via cookie, but NO ownership check:
+            # any id returns any account's private data.
+            try:
+                acc_id = int(q.get("id", ["1"])[0])
+            except ValueError:
+                acc_id = 1
+            acc = ACCOUNTS.get(acc_id)
+            if acc:
+                self._send(200, json.dumps({"id": acc_id, **acc}), ctype="application/json")
+            else:
+                self._send(404, json.dumps({"error": "not found"}), ctype="application/json")
 
         elif u.path == "/user":                            # SQL injection
             uid = q.get("id", ["1"])[0]
