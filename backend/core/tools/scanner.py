@@ -412,59 +412,87 @@ async def _http_probe(url: str) -> dict:
 
 
 async def _xss_probe(url: str) -> dict:
-    """Test reflected XSS deterministically: inject a unique marker carrying
-    HTML-breaking chars into each query parameter and check whether it comes
-    back UNescaped (real XSS) vs escaped (safe). Pass a URL with parameters,
-    e.g. http://host/search?q=test"""
+    """Test XSS deterministically by injecting a unique marker and checking if
+    it comes back UNescaped (real XSS) vs escaped (safe). Covers:
+      - reflected (GET): each query parameter
+      - reflected/stored (POST): forms on the page — submit, then re-fetch and
+        see if the marker persists unescaped (stored) or reflects (reflected)
+    DOM XSS needs browser_probe. Pass a URL (with params and/or a form)."""
     import httpx
     import secrets
-    from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+    import re
+    from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, urljoin
 
     if not url.startswith("http"):
         url = f"http://{url}"
-    parsed = urlparse(url)
-    params = parse_qs(parsed.query, keep_blank_values=True)
 
-    if not params:
-        return {
-            "url": url, "vulnerable": False, "tested_params": [],
-            "note": "No query parameters to test. Provide a URL with a param, e.g. /search?q=test",
-        }
+    def _mark():
+        return "kx" + secrets.token_hex(3)
 
-    def _ctx(body: str, needle: str) -> str:
+    def _ctx(body, needle):
         i = body.find(needle)
-        return body[max(0, i - 40): i + 80] if i >= 0 else ""
+        return body[max(0, i - 40): i + 90] if i >= 0 else ""
 
-    results = []
+    PAYLOAD_TAIL = "<svg/onload=alert(1)>"
+    findings = []
+
     async with httpx.AsyncClient(timeout=8, follow_redirects=True, verify=False) as client:
+        # 1) Reflected XSS via GET query parameters.
+        parsed = urlparse(url)
+        params = parse_qs(parsed.query, keep_blank_values=True)
         for pname in params:
-            token = secrets.token_hex(3)
-            marker = f"kx{token}"
-            payload = f"{marker}<svg/onload=alert(1)>\"'"
-            test_params = {k: v[0] for k, v in params.items()}
-            test_params[pname] = payload
-            test_url = urlunparse(parsed._replace(query=urlencode(test_params)))
+            m = _mark()
+            tp = {k: v[0] for k, v in params.items()}
+            tp[pname] = m + PAYLOAD_TAIL
+            turl = urlunparse(parsed._replace(query=urlencode(tp)))
             try:
-                r = await client.get(test_url)
-                body = r.text
-                raw = f"{marker}<svg/onload" in body          # dangerous '<' survived
-                escaped = (f"{marker}&lt;svg" in body) or (f"{marker}%3csvg" in body.lower())
-                results.append({
-                    "param": pname,
-                    "reflected_unescaped": raw,
-                    "reflected_but_escaped": escaped and not raw,
-                    "context": _ctx(body, marker),
-                    "payload": payload,
-                })
-            except Exception as e:
-                results.append({"param": pname, "error": str(e)})
+                body = (await client.get(turl)).text
+                if m + PAYLOAD_TAIL in body:
+                    findings.append({"type": "reflected", "vector": f"GET param '{pname}'",
+                                     "context": _ctx(body, m)})
+            except Exception:
+                pass
 
-    vulnerable = any(r.get("reflected_unescaped") for r in results)
+        # 2) Forms on the page -> reflected (POST echo) or stored (persists).
+        try:
+            page = (await client.get(url)).text
+        except Exception:
+            page = ""
+        for fm in re.findall(r"<form[^>]*>.*?</form>", page, re.I | re.S):
+            am = re.search(r'action=["\']([^"\']*)', fm, re.I)
+            mm = re.search(r'method=["\']([^"\']*)', fm, re.I)
+            action = am.group(1) if am else ""
+            method = (mm.group(1).lower() if mm else "get")
+            inputs = re.findall(r'<(?:input|textarea)[^>]+name=["\']([^"\']+)', fm, re.I)
+            if not inputs:
+                continue
+            target = urljoin(url, action) if action else url
+            m = _mark()
+            data = {n: m + PAYLOAD_TAIL for n in inputs}
+            try:
+                if method == "post":
+                    await client.post(target, data=data)
+                    # stored: re-fetch the form page and the action page
+                    for check in {url, target}:
+                        back = (await client.get(check)).text
+                        if m + PAYLOAD_TAIL in back:
+                            findings.append({"type": "stored",
+                                             "vector": f"POST {inputs} -> reflected on {check}",
+                                             "context": _ctx(back, m)})
+                            break
+                else:
+                    body = (await client.get(target, params=data)).text
+                    if m + PAYLOAD_TAIL in body:
+                        findings.append({"type": "reflected", "vector": f"GET form {inputs}",
+                                         "context": _ctx(body, m)})
+            except Exception:
+                pass
+
     return {
         "url": url,
-        "vulnerable": vulnerable,
-        "tested_params": list(params.keys()),
-        "results": results,
+        "vulnerable": len(findings) > 0,
+        "findings": findings,
+        "note": "Tested GET params + forms (reflected & stored). DOM XSS requires browser_probe.",
     }
 
 

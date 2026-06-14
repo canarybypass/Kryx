@@ -14,6 +14,9 @@ import html
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
+# In-memory store for the stored-XSS guestbook (planted vuln).
+COMMENTS = []
+
 DB = sqlite3.connect(":memory:", check_same_thread=False)
 DB.execute("CREATE TABLE users (id INTEGER, name TEXT, email TEXT, secret TEXT)")
 DB.executemany(
@@ -46,8 +49,25 @@ class Handler(BaseHTTPRequestHandler):
         q = parse_qs(u.query)
 
         if u.path == "/":
-            self._send(200, "<h1>Kryx Testbed</h1><a href='/search?q=hi'>search</a> "
-                            "<a href='/user?id=1'>user</a>")
+            self._send(200, "<h1>Kryx Testbed</h1>"
+                            "<a href='/search?q=hi'>search</a> "
+                            "<a href='/user?id=1'>user</a> "
+                            "<a href='/guestbook'>guestbook</a> "
+                            "<a href='/page#name=hi'>page</a>")
+
+        elif u.path == "/guestbook":                       # stored XSS
+            items = "".join(f"<li>{c}</li>" for c in COMMENTS)  # unescaped on purpose
+            self._send(200,
+                       "<h2>Guestbook</h2>"
+                       "<form method='POST' action='/guestbook'>"
+                       "<input name='comment'><button>Post</button></form>"
+                       f"<ul>{items}</ul>")
+
+        elif u.path == "/page":                            # DOM XSS sink
+            self._send(200,
+                       "<h2>Welcome</h2><div id='out'></div>"
+                       "<script>document.getElementById('out').innerHTML = "
+                       "decodeURIComponent(location.hash.slice(1).split('name=')[1]||'');</script>")
 
         elif u.path == "/.env":                            # exposed secrets
             self._send(200, "DB_PASSWORD=supersecret123\nSTRIPE_SECRET_KEY=sk_live_AAAA\n",
@@ -69,6 +89,18 @@ class Handler(BaseHTTPRequestHandler):
                 # verbose SQL error -> enables error-based detection
                 self._send(500, f"<pre>SQL error: {e}</pre>")
 
+        else:
+            self._send(404, "<h1>404</h1>")
+
+    def do_POST(self):
+        u = urlparse(self.path)
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length).decode("utf-8", "replace") if length else ""
+        form = parse_qs(body)
+
+        if u.path == "/guestbook":
+            COMMENTS.append(form.get("comment", [""])[0])   # stored unsanitized
+            self._send(200, "<p>Saved. <a href='/guestbook'>back</a></p>")
         else:
             self._send(404, "<h1>404</h1>")
 
