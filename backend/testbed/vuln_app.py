@@ -12,8 +12,15 @@ Vulnerabilities planted (on purpose):
 import sqlite3
 import html
 import json
+import os
+import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
+
+# Download dir for the path-traversal demo (planted vuln).
+os.makedirs("downloads", exist_ok=True)
+with open("downloads/readme.txt", "w") as _f:
+    _f.write("public readme\n")
 
 # In-memory store for the stored-XSS guestbook (planted vuln).
 COMMENTS = []
@@ -65,7 +72,9 @@ class Handler(BaseHTTPRequestHandler):
                             "<a href='/page#name=hi'>page</a> "
                             "<a href='/api/account?id=1'>my account</a> "
                             "<a href='/fetch?url=http://example.com'>fetch</a> "
-                            "<a href='/ping?host=127.0.0.1'>ping</a>")
+                            "<a href='/ping?host=127.0.0.1'>ping</a> "
+                            "<a href='/download?file=readme.txt'>download</a> "
+                            "<a href='/greet?name=guest'>greet</a>")
 
         elif u.path == "/guestbook":                       # stored XSS
             items = "".join(f"<li>{c}</li>" for c in COMMENTS)  # unescaped on purpose
@@ -88,6 +97,24 @@ class Handler(BaseHTTPRequestHandler):
         elif u.path == "/search":                          # reflected XSS
             term = q.get("q", [""])[0]
             self._send(200, f"<h2>Results for: {term}</h2>")  # unescaped on purpose
+
+        elif u.path == "/download":                        # path traversal / LFI
+            fname = q.get("file", ["readme.txt"])[0]
+            try:
+                with open("downloads/" + fname, "rb") as f:   # no sanitization
+                    self._send(200, b"<pre>" + f.read()[:1000] + b"</pre>")
+            except Exception as e:
+                self._send(404, f"<pre>not found: {html.escape(str(e))}</pre>")
+
+        elif u.path == "/greet":                           # SSTI
+            name = q.get("name", ["guest"])[0]
+            def _render(m):
+                try:
+                    return str(eval(m.group(1), {"__builtins__": {}}, {}))  # template eval
+                except Exception:
+                    return m.group(0)
+            out = re.sub(r"\{\{(.+?)\}\}", _render, f"Hello {name}")
+            self._send(200, f"<p>{out}</p>")
 
         elif u.path == "/ping":                            # command injection
             host = q.get("host", ["127.0.0.1"])[0]

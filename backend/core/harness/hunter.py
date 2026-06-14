@@ -13,8 +13,8 @@ from core.harness.memory import AgentMemory
 ATTACK_CLASSES = [
     {
         "name": "injection",
-        "description": "SQL injection, command injection, LDAP injection, XXE",
-        "tools": ["sqlmap_check", "cmdi_probe", "http_probe", "browser_probe"],
+        "description": "SQL injection, command injection, SSTI, LDAP injection, XXE",
+        "tools": ["sqlmap_check", "cmdi_probe", "ssti_probe", "http_probe", "browser_probe"],
         "priority": "critical",
     },
     {
@@ -49,8 +49,8 @@ ATTACK_CLASSES = [
     },
     {
         "name": "info_disclosure",
-        "description": "Information leakage, verbose errors, exposed APIs, swagger/graphql",
-        "tools": ["sensitive_files", "dir_bruteforce", "http_probe", "whatweb", "browser_probe"],
+        "description": "Information leakage, path traversal/LFI, verbose errors, exposed APIs, swagger/graphql",
+        "tools": ["sensitive_files", "lfi_probe", "dir_bruteforce", "http_probe", "whatweb", "browser_probe"],
         "priority": "medium",
     },
     {
