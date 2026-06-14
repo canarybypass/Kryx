@@ -14,7 +14,7 @@ ATTACK_CLASSES = [
     {
         "name": "injection",
         "description": "SQL injection, command injection, LDAP injection, XXE",
-        "tools": ["sqlmap_check", "http_probe", "browser_probe"],
+        "tools": ["sqlmap_check", "cmdi_probe", "http_probe", "browser_probe"],
         "priority": "critical",
     },
     {

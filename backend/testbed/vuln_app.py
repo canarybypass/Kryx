@@ -64,7 +64,8 @@ class Handler(BaseHTTPRequestHandler):
                             "<a href='/guestbook'>guestbook</a> "
                             "<a href='/page#name=hi'>page</a> "
                             "<a href='/api/account?id=1'>my account</a> "
-                            "<a href='/fetch?url=http://example.com'>fetch</a>")
+                            "<a href='/fetch?url=http://example.com'>fetch</a> "
+                            "<a href='/ping?host=127.0.0.1'>ping</a>")
 
         elif u.path == "/guestbook":                       # stored XSS
             items = "".join(f"<li>{c}</li>" for c in COMMENTS)  # unescaped on purpose
@@ -87,6 +88,12 @@ class Handler(BaseHTTPRequestHandler):
         elif u.path == "/search":                          # reflected XSS
             term = q.get("q", [""])[0]
             self._send(200, f"<h2>Results for: {term}</h2>")  # unescaped on purpose
+
+        elif u.path == "/ping":                            # command injection
+            host = q.get("host", ["127.0.0.1"])[0]
+            import subprocess
+            out = subprocess.getoutput(f"echo PING {host}")   # shell=True -> injectable
+            self._send(200, f"<pre>{out}</pre>")
 
         elif u.path == "/fetch":                           # SSRF
             # Server fetches an attacker-controlled URL with no allowlist.
