@@ -297,6 +297,8 @@ XSS:         innerHTML, document.write(), dangerouslySetInnerHTML, v-html
 3. Ищи indirect taint: данные из БД которые изначально пришли от пользователя
 4. Обращай внимание на type juggling, encoding issues, path traversal в file operations
 5. Для каждой находки — минимальный PoC payload
+6. Для КАЖДОЙ находки — готовый исправленный код (fix_code): параметризованный запрос,
+   санитизация, валидация, безопасный API. Код должен быть пригоден заменить уязвимый as-is.
 
 Формат ответа — валидный JSON:
 {
@@ -317,7 +319,9 @@ XSS:         innerHTML, document.write(), dangerouslySetInnerHTML, v-html
       "code_snippet": "точный код из файла",
       "exploitability": "confirmed|likely|theoretical",
       "poc": "?id=1' OR '1'='1",
-      "impact": "полный дамп БД, обход аутентификации"
+      "impact": "полный дамп БД, обход аутентификации",
+      "remediation": "1-2 предложения: как чинить",
+      "fix_code": "ПОЛНЫЙ исправленный фрагмент кода (готовый заменить уязвимый), с параметризацией/санитизацией/валидацией"
     }
   ],
   "variant_patterns": [
