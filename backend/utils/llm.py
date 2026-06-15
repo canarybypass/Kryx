@@ -25,6 +25,8 @@ class LLMClient:
             return await self._anthropic(system, prompt, model_name)
         elif provider == "openai":
             return await self._openai(system, prompt, model_name, json_mode)
+        elif provider == "groq":
+            return await self._groq(system, prompt, model_name)
         else:
             return await self._openrouter(system, prompt, model_name, json_mode)
 
@@ -94,6 +96,40 @@ class LLMClient:
                     last_err = f"{fb_model}: {type(e).__name__}: {str(e)[:120]}"
                     await asyncio.sleep(3)
         raise RuntimeError(f"All models failed. Last error — {last_err}")
+
+    async def _groq(self, system: str, prompt: str, model: str) -> str:
+        api_key = os.getenv("GROQ_API_KEY")
+        if not api_key:
+            raise RuntimeError("GROQ_API_KEY not set")
+
+        # Groq is OpenAI-compatible. Generous free tier, no card. We don't
+        # force response_format (json) — the caller-side parser extracts JSON.
+        last_err = "unknown"
+        for attempt in range(4):
+            try:
+                async with httpx.AsyncClient(timeout=120) as client:
+                    r = await client.post(
+                        "https://api.groq.com/openai/v1/chat/completions",
+                        headers={"Authorization": f"Bearer {api_key}"},
+                        json={
+                            "model": model,
+                            "messages": [
+                                {"role": "system", "content": system},
+                                {"role": "user", "content": prompt},
+                            ],
+                            "temperature": 0.3,
+                        },
+                    )
+                    if r.status_code == 429:
+                        last_err = "429 rate-limited"
+                        await asyncio.sleep(4 * (attempt + 1))
+                        continue
+                    r.raise_for_status()
+                    return r.json()["choices"][0]["message"]["content"]
+            except Exception as e:
+                last_err = f"{type(e).__name__}: {str(e)[:120]}"
+                await asyncio.sleep(2)
+        raise RuntimeError(f"Groq failed — {last_err}")
 
     async def _anthropic(self, system: str, prompt: str, model: str) -> str:
         api_key = os.getenv("ANTHROPIC_API_KEY")
