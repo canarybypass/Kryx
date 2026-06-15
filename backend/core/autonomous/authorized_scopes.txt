@@ -1,0 +1,11 @@
+# Kryx authorized scopes — hosts the engine is ALLOWED to actively scan.
+# One per line. Use *.example.com for wildcards. Lines starting with # are comments.
+# Add ONLY: your own assets, or targets that explicitly permit testing.
+# (Localhost / private IPs are always allowed.)
+
+# Vendor-published deliberately-vulnerable training targets (authorized for testing):
+ginandjuice.shop
+*.ginandjuice.shop
+demo.testfire.net
+brokencrystals.com
+juice-shop.herokuapp.com

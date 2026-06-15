@@ -68,6 +68,17 @@ class Supervisor:
         self.result = ScanResult(target=target)
 
     async def run(self) -> dict:
+        # Authorization gate — never actively scan a non-authorized host.
+        from core.autonomous.authz import is_authorized
+        ok, reason = is_authorized(self.target)
+        if not ok:
+            await self._emit("status", "refused")
+            self.result.summary = f"REFUSED: {reason}"
+            self.result.stats = {"refused": True, "reason": reason}
+            return {"target": self.target, "error": "unauthorized", "reason": reason,
+                    "vulnerabilities": [], "attack_chains": [], "report": "", "recon": {},
+                    "stats": self.result.stats}
+
         await self._emit("status", "recon")
 
         # Stage 1: Reconnaissance

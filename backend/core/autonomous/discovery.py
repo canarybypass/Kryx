@@ -1,0 +1,58 @@
+"""
+Kryx Discovery — find AUTHORIZED targets to scan.
+
+Pulls aggregated, daily-updated bug-bounty in-scope domains/wildcards from a
+public feed (arkadiyt/bounty-targets-data). Being in-scope means the program
+authorizes testing of those hosts. Cached locally; the authz gate reads the
+cache so the engine only ever touches authorized hosts.
+
+NOTE: in-scope authorizes testing, but each program may still restrict
+AUTOMATED scanning — review the program's policy before mass-scanning.
+"""
+import asyncio
+from pathlib import Path
+
+import httpx
+
+CACHE = Path(__file__).parent / "bounty_scopes_cache.txt"
+FEEDS = [
+    "https://raw.githubusercontent.com/arkadiyt/bounty-targets-data/main/data/domains.txt",
+    "https://raw.githubusercontent.com/arkadiyt/bounty-targets-data/main/data/wildcards.txt",
+]
+
+
+async def fetch_bounty_scopes() -> int:
+    """Download in-scope domains/wildcards into the local cache. Returns count."""
+    scopes: set[str] = set()
+    async with httpx.AsyncClient(timeout=30, follow_redirects=True) as c:
+        for url in FEEDS:
+            try:
+                r = await c.get(url)
+                if r.status_code == 200:
+                    for line in r.text.splitlines():
+                        s = line.strip().lower()
+                        # keep only plain domains / *.wildcards (skip URLs, IPs, junk)
+                        if s and "/" not in s and " " not in s and "." in s:
+                            scopes.add(s)
+            except Exception:
+                pass
+    if scopes:
+        CACHE.write_text("\n".join(sorted(scopes)))
+    return len(scopes)
+
+
+def load_cached_scopes() -> list[str]:
+    if CACHE.exists():
+        return [l.strip().lower() for l in CACHE.read_text().splitlines() if l.strip()]
+    return []
+
+
+def sample_targets(n: int = 20) -> list[str]:
+    """A sample of concrete (non-wildcard) in-scope domains, ready to queue."""
+    domains = [s for s in load_cached_scopes() if not s.startswith("*.")]
+    return domains[:n]
+
+
+if __name__ == "__main__":
+    count = asyncio.run(fetch_bounty_scopes())
+    print(f"cached {count} authorized scope entries -> {CACHE}")

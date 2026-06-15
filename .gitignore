@@ -27,3 +27,6 @@ backend/last_scan_result.json
 
 # Testbed runtime artifacts
 backend/downloads/
+
+# Autonomous discovery cache
+backend/core/autonomous/bounty_scopes_cache.txt
