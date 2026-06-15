@@ -1,5 +1,5 @@
 """
-Hexor Sandbox — Safe Exploit Execution Environment
+Kryx Sandbox — Safe Exploit Execution Environment
 
 Provides isolated environment for:
 - PoC verification
@@ -73,7 +73,7 @@ class SandboxEnvironment:
             }
         
         # Create temp directory for code
-        temp_dir = tempfile.mkdtemp(prefix="hexor_sandbox_")
+        temp_dir = tempfile.mkdtemp(prefix="kryx_sandbox_")
         
         try:
             # Write code to file

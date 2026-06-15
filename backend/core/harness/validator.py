@@ -1,5 +1,5 @@
 """
-Hexor Validator Stage — adversarial review of findings
+Kryx Validator Stage — adversarial review of findings
 """
 import json
 import asyncio

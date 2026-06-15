@@ -1,5 +1,5 @@
 """
-Hexor Code Auditor — статический анализ исходного кода через LLM
+Kryx Code Auditor — статический анализ исходного кода через LLM
 Mythos-style: taint analysis + variant analysis по всей кодовой базе
 """
 import asyncio
@@ -115,7 +115,7 @@ class CodeAuditor:
     # ── Source loading ──────────────────────────────────────
 
     async def _load_source(self, source: str, github_token: str | None) -> Path | None:
-        tmp = Path(tempfile.mkdtemp(prefix="hexor-audit-"))
+        tmp = Path(tempfile.mkdtemp(prefix="kryx-audit-"))
 
         # GitHub URL
         if "github.com" in source:

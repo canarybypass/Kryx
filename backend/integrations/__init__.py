@@ -1,5 +1,5 @@
 """
-Integrations module for Hexor
+Integrations module for Kryx
 
 External service integrations:
 - GitHub webhooks

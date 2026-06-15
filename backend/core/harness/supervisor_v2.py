@@ -1,5 +1,5 @@
 """
-Hexor Supervisor v2 — 6-Stage Pipeline Orchestrator
+Kryx Supervisor v2 — 6-Stage Pipeline Orchestrator
 
 New architecture for 0-day hunting:
 1. Static Analysis (AST parsing, taint analysis)

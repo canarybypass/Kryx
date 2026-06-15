@@ -1,5 +1,5 @@
 """
-Hexor Chain Builder — построение цепочек атак из подтверждённых уязвимостей
+Kryx Chain Builder — построение цепочек атак из подтверждённых уязвимостей
 """
 import json
 from utils.llm import get_llm

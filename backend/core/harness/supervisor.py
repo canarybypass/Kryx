@@ -1,5 +1,5 @@
 """
-Hexor Supervisor — главный оркестратор многоагентной системы
+Kryx Supervisor — главный оркестратор многоагентной системы
 """
 import json
 import re

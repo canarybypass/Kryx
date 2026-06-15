@@ -2,7 +2,7 @@
 
 ## Overview
 
-Hexor uses Stripe for subscription billing. This guide walks through complete setup.
+Kryx uses Stripe for subscription billing. This guide walks through complete setup.
 
 ## 1. Create Stripe Account
 
@@ -33,7 +33,7 @@ Dashboard → Products → Add Product
 
 ### Starter Tier
 
-- **Name:** Hexor Starter
+- **Name:** Kryx Starter
 - **Description:** 10 scans/month, basic features
 - **Pricing:** $99/month (recurring)
 - **Billing period:** Monthly
@@ -42,7 +42,7 @@ Dashboard → Products → Add Product
 
 ### Pro Tier
 
-- **Name:** Hexor Pro
+- **Name:** Kryx Pro
 - **Description:** 100 scans/month, exploit generation, API access
 - **Pricing:** $499/month
 - **Billing period:** Monthly
@@ -50,7 +50,7 @@ Dashboard → Products → Add Product
 
 ### Enterprise Tier
 
-- **Name:** Hexor Enterprise
+- **Name:** Kryx Enterprise
 - **Description:** Unlimited scans, private deployment, SLA
 - **Pricing:** $2,999/month
 - **Billing period:** Monthly
@@ -58,7 +58,7 @@ Dashboard → Products → Add Product
 
 ### APT Tier
 
-- **Name:** Hexor APT
+- **Name:** Kryx APT
 - **Description:** Full 0-day hunting, advanced chains, consulting
 - **Pricing:** $9,999/month
 - **Billing period:** Monthly
@@ -123,7 +123,7 @@ STRIPE_PRICE_APT=price_abc...
 
 # Frontend URL (for redirects)
 FRONTEND_URL=http://localhost:3000  # dev
-# FRONTEND_URL=https://hexor.app    # production
+# FRONTEND_URL=https://kryx.app    # production
 ```
 
 ## 6. Install Stripe Python SDK

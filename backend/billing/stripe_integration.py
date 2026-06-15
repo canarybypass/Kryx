@@ -1,5 +1,5 @@
 """
-Hexor Billing — Stripe Integration
+Kryx Billing — Stripe Integration
 
 Handles:
 - Subscription creation/cancellation

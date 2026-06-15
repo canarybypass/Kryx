@@ -1,5 +1,5 @@
 """
-Sandbox module for Hexor
+Sandbox module for Kryx
 
 Safe code execution environment.
 """

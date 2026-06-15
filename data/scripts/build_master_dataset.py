@@ -106,7 +106,7 @@ def load_all_processed() -> dict[str, list]:
     }
 
     # Also load old build_dataset.py output if exists
-    old_dataset = PROCESSED / "hexor_full_dataset.jsonl"
+    old_dataset = PROCESSED / "kryx_full_dataset.jsonl"
     if old_dataset.exists():
         old = load_jsonl(old_dataset)
         # Only take samples with decent output length
@@ -390,7 +390,7 @@ class MasterDatasetBuilder:
         val = samples[split:]
 
         # Save full dataset
-        with open(PROCESSED / f"hexor_dataset_{ts}.jsonl", "w") as f:
+        with open(PROCESSED / f"kryx_dataset_{ts}.jsonl", "w") as f:
             for s in samples:
                 f.write(json.dumps(s, ensure_ascii=False) + "\n")
 
@@ -434,7 +434,7 @@ class MasterDatasetBuilder:
         print(f"  processed/train.jsonl          ← для fine-tune")
         print(f"  processed/val.jsonl            ← для evaluation")
         print(f"  processed/train_alpaca.json    ← Alpaca format")
-        print(f"  processed/hexor_dataset_{ts}.jsonl")
+        print(f"  processed/kryx_dataset_{ts}.jsonl")
         print(f"\nSource breakdown:")
         for src, stat in self.stats.items():
             if isinstance(stat, dict) and "filtered" in stat:

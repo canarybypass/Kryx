@@ -1,5 +1,5 @@
 """
-Hexor Variant Hunter — Find similar vulnerabilities after initial discovery
+Kryx Variant Hunter — Find similar vulnerabilities after initial discovery
 
 Inspired by Google's Big Sleep approach:
 When a vulnerability is found, automatically search the codebase for similar patterns.

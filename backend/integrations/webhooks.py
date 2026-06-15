@@ -1,5 +1,5 @@
 """
-Hexor Webhooks & Integrations
+Kryx Webhooks & Integrations
 
 External integrations for:
 - GitHub (webhooks, security advisories)
@@ -319,7 +319,7 @@ class NotificationService:
                 json.dumps(payload).encode(),
                 hashlib.sha256
             ).hexdigest()
-            headers["X-Hexor-Signature"] = f"sha256={signature}"
+            headers["X-Kryx-Signature"] = f"sha256={signature}"
         
         try:
             response = await self.http_client.post(
@@ -351,7 +351,7 @@ class NotificationService:
             "attachments": [{
                 "color": color_map.get(severity, "#808080"),
                 "text": message,
-                "footer": "Hexor Security Platform"
+                "footer": "Kryx Security Platform"
             }]
         }
         

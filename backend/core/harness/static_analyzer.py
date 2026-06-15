@@ -1,5 +1,5 @@
 """
-Hexor Static Analysis Stage — AST-based vulnerability detection
+Kryx Static Analysis Stage — AST-based vulnerability detection
 
 Performs:
 1. AST parsing (tree-sitter for multi-language)

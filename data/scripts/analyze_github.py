@@ -1,5 +1,5 @@
 """
-GitHub Repository Analyzer for Hexor Dataset
+GitHub Repository Analyzer for Kryx Dataset
 
 Analyzes popular open-source projects to teach the model:
 1. How real codebases are structured

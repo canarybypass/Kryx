@@ -1,5 +1,5 @@
 """
-Knowledge Base module for Hexor
+Knowledge Base module for Kryx
 
 Vulnerability patterns, exploit templates, CVE database.
 """

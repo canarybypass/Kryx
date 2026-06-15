@@ -1,5 +1,5 @@
 """
-Hexor LLM Client — unified interface to multiple LLM providers
+Kryx LLM Client — unified interface to multiple LLM providers
 """
 import os
 import json
@@ -14,7 +14,7 @@ class LLMClient:
     """Unified LLM client with provider fallback."""
 
     def __init__(self, model: str | None = None):
-        self.model = model or os.getenv("HEXOR_MODEL", "openrouter/anthropic/claude-opus-4")
+        self.model = model or os.getenv("KRYX_MODEL") or os.getenv("HEXOR_MODEL", "openrouter/anthropic/claude-opus-4")
 
     async def ask(self, system: str, prompt: str, json_mode: bool = True) -> str:
         provider, model_name = self._parse_model(self.model)

@@ -481,7 +481,7 @@ async def test_webhook(req: WebhookConfigRequest, user: CurrentUser):
     success = await notification.send_webhook(
         req.webhook_url,
         "test",
-        {"message": "Hexor webhook test successful", "org": user.organization.name}
+        {"message": "Kryx webhook test successful", "org": user.organization.name}
     )
     
     if success:

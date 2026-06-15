@@ -1,5 +1,5 @@
 """
-Hexor Hunter Stage — параллельные агенты для поиска уязвимостей
+Kryx Hunter Stage — параллельные агенты для поиска уязвимостей
 """
 import json
 import asyncio

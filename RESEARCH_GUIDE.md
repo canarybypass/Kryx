@@ -20,7 +20,7 @@ git clone https://github.com/github/advisory-database.git
 
 ### Exploit-DB
 ```bash
-cd /home/offsys/hexor
+cd /home/offsys/kryx
 python3 research_exploitdb.py
 ```
 
@@ -33,7 +33,7 @@ python3 research_exploitdb.py
 
 ### GitHub Advisory
 ```bash
-cd /home/offsys/hexor
+cd /home/offsys/kryx
 python3 research_ghsa.py
 ```
 

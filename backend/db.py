@@ -1,5 +1,5 @@
 """
-Hexor DB — SQLAlchemy async models + session factory
+Kryx DB — SQLAlchemy async models + session factory
 Enterprise-grade schema for 0-day hunting platform
 """
 import os
@@ -12,7 +12,7 @@ from enum import Enum
 
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql+asyncpg://hexor:hexor@localhost:5432/hexor",
+    "postgresql+asyncpg://kryx:kryx@localhost:5432/kryx",
 )
 
 engine = create_async_engine(DATABASE_URL, echo=False, pool_pre_ping=True)

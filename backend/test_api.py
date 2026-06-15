@@ -10,7 +10,7 @@ import uuid
 import time
 import os
 
-app = FastAPI(title="Vulnyx API")
+app = FastAPI(title="Kryx API")
 
 # Mount static files
 static_dir = os.path.join(os.path.dirname(__file__), "static")
@@ -26,16 +26,16 @@ async def root():
     if os.path.exists(index_path):
         with open(index_path, "r") as f:
             return f.read()
-    return "<h1>Vulnyx API</h1><p>Backend is running. <a href='/docs'>API Docs</a></p>"
+    return "<h1>Kryx API</h1><p>Backend is running. <a href='/docs'>API Docs</a></p>"
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "service": "Vulnyx"}
+    return {"status": "ok", "service": "Kryx"}
 
 @app.get("/api/v2/test")
 async def test():
     return {
-        "message": "Vulnyx API v2.0",
+        "message": "Kryx API v2.0",
         "features": [
             "Static Analysis",
             "Variant Hunter",
@@ -127,7 +127,7 @@ async def list_scans(limit: int = 20):
 
 if __name__ == "__main__":
     import uvicorn
-    print("🚀 Starting Vulnyx API test server...")
+    print("🚀 Starting Kryx API test server...")
     print("🌐 Web UI: http://localhost:8000")
     print("📚 API Docs: http://localhost:8000/docs")
     uvicorn.run(app, host="0.0.0.0", port=8000)

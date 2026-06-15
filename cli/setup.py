@@ -1,5 +1,5 @@
 """
-Setup configuration for Hexor CLI
+Setup configuration for Kryx CLI
 """
 from setuptools import setup, find_packages
 
@@ -7,16 +7,16 @@ with open("README.md", "r", encoding="utf-8") as f:
     long_description = f.read()
 
 setup(
-    name="vulnyx",
+    name="kryx",
     version="0.1.0",
     description="AI-powered security scanning CLI",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    author="Vulnyx Security",
-    author_email="contact@vulnyx.io",
-    url="https://vulnyx.io",
+    author="Kryx Security",
+    author_email="contact@kryx.io",
+    url="https://kryx.io",
     packages=find_packages(),
-    py_modules=["vulnyx_cli"],
+    py_modules=["kryx_cli"],
     install_requires=[
         "click>=8.1.0",
         "httpx>=0.27.0",
@@ -24,7 +24,7 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "vulnyx=vulnyx_cli:cli",
+            "kryx=kryx_cli:cli",
         ],
     },
     classifiers=[

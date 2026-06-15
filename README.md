@@ -1,4 +1,4 @@
-# Vulnyx
+# Kryx
 
 AI-powered penetration testing platform. Multi-agent harness with real tool integration.
 
@@ -78,4 +78,4 @@ npm install && npm start  # port 3000
 - `/api/webhooks/*` - GitHub/GitLab integration
 - `/api/knowledge/*` - Vulnerability pattern search
 
-**Domain:** vulnyx.io (coming soon)
+**Domain:** kryx.io (coming soon)

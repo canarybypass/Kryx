@@ -1,5 +1,5 @@
 """
-Hexor Reporter — генерация профессионального отчёта
+Kryx Reporter — генерация профессионального отчёта
 """
 import json
 from utils.llm import get_llm

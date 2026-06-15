@@ -1,5 +1,5 @@
 """
-Hexor Dataset Builder — сбор данных для fine-tune модели пентестера
+Kryx Dataset Builder — сбор данных для fine-tune модели пентестера
 """
 import os
 import json

@@ -3,15 +3,15 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: vulnyx
-      POSTGRES_USER: vulnyx
-      POSTGRES_PASSWORD: vulnyx
+      POSTGRES_DB: kryx
+      POSTGRES_USER: kryx
+      POSTGRES_PASSWORD: kryx
     volumes:
       - pgdata:/var/lib/postgresql/data
     networks:
-      - vulnyx
+      - kryx
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U vulnyx"]
+      test: ["CMD-SHELL", "pg_isready -U kryx"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -21,15 +21,15 @@ services:
     restart: unless-stopped
     env_file: ./backend/.env
     environment:
-      DATABASE_URL: postgresql+asyncpg://vulnyx:vulnyx@postgres:5432/vulnyx
-      VULNYX_SANDBOX_DIR: /tmp/vulnyx-sandbox
+      DATABASE_URL: postgresql+asyncpg://kryx:kryx@postgres:5432/kryx
+      VULNYX_SANDBOX_DIR: /tmp/kryx-sandbox
     volumes:
-      - sandbox:/tmp/vulnyx-sandbox
+      - sandbox:/tmp/kryx-sandbox
     depends_on:
       postgres:
         condition: service_healthy
     networks:
-      - vulnyx
+      - kryx
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
       interval: 30s
@@ -45,12 +45,12 @@ services:
       backend:
         condition: service_healthy
     networks:
-      - vulnyx
+      - kryx
 
 volumes:
   pgdata:
   sandbox:
 
 networks:
-  vulnyx:
+  kryx:
     driver: bridge

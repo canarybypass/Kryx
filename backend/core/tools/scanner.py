@@ -1,5 +1,5 @@
 """
-Hexor Tool Integrations — wrappers around real pentesting tools
+Kryx Tool Integrations — wrappers around real pentesting tools
 """
 import os
 import json
@@ -7,7 +7,7 @@ import asyncio
 import shutil
 from pathlib import Path
 
-SANDBOX_DIR = Path(os.getenv("HEXOR_SANDBOX_DIR", "/tmp/hexor-sandbox"))
+SANDBOX_DIR = Path(os.getenv("KRYX_SANDBOX_DIR") or os.getenv("HEXOR_SANDBOX_DIR", "/tmp/kryx-sandbox"))
 
 # Optional API keys (from .env)
 SHODAN_API_KEY = os.getenv("SHODAN_API_KEY")

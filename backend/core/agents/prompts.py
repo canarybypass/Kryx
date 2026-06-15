@@ -1,5 +1,5 @@
 """
-Hexor Agent Prompts — все системные промпты для агентов
+Kryx Agent Prompts — все системные промпты для агентов
 """
 
 RECON_PROMPT = """Ты — эксперт по разведке (reconnaissance) в red team операциях уровня APT.

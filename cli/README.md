@@ -1,11 +1,11 @@
-# Hexor CLI
+# Kryx CLI
 
-Command-line interface for Hexor AI-powered security scanning platform.
+Command-line interface for Kryx AI-powered security scanning platform.
 
 ## Installation
 
 ```bash
-pip install hexor
+pip install kryx
 ```
 
 ## Quick Start
@@ -13,69 +13,69 @@ pip install hexor
 ### 1. Login
 
 ```bash
-hexor login
-# Enter your API key from https://hexor.app/settings/api
+kryx login
+# Enter your API key from https://kryx.app/settings/api
 ```
 
 ### 2. Run a Scan
 
 ```bash
 # Scan local project
-hexor scan /path/to/project
+kryx scan /path/to/project
 
 # Scan GitHub repository
-hexor scan https://github.com/user/repo
+kryx scan https://github.com/user/repo
 
 # Scan website
-hexor scan --type web https://example.com
+kryx scan --type web https://example.com
 
 # Scan without waiting for completion
-hexor scan /path/to/project --no-wait
+kryx scan /path/to/project --no-wait
 ```
 
 ### 3. Check Status
 
 ```bash
-hexor status 123
+kryx status 123
 ```
 
 ### 4. List Scans
 
 ```bash
-hexor list
-hexor list --limit 50
+kryx list
+kryx list --limit 50
 ```
 
 ### 5. Get Report
 
 ```bash
 # View in terminal
-hexor report 123
+kryx report 123
 
 # Save to file
-hexor report 123 --output report.md
+kryx report 123 --output report.md
 
 # JSON format
-hexor report 123 --format json --output report.json
+kryx report 123 --format json --output report.json
 ```
 
 ### 6. View Exploits
 
 ```bash
-hexor exploits 123
+kryx exploits 123
 ```
 
 ## Commands
 
-### `hexor login`
+### `kryx login`
 
 Save API credentials locally.
 
 **Options:**
-- `--api-key`: Your Hexor API key
-- `--api-url`: API endpoint (default: https://api.hexor.app)
+- `--api-key`: Your Kryx API key
+- `--api-url`: API endpoint (default: https://api.kryx.app)
 
-### `hexor scan <target>`
+### `kryx scan <target>`
 
 Start a new security scan.
 
@@ -88,13 +88,13 @@ Start a new security scan.
 
 **Examples:**
 ```bash
-hexor scan .
-hexor scan /home/user/project
-hexor scan https://github.com/org/repo
-hexor scan --type web https://api.example.com
+kryx scan .
+kryx scan /home/user/project
+kryx scan https://github.com/org/repo
+kryx scan --type web https://api.example.com
 ```
 
-### `hexor status <scan_id>`
+### `kryx status <scan_id>`
 
 Check scan progress and status.
 
@@ -103,10 +103,10 @@ Check scan progress and status.
 
 **Example:**
 ```bash
-hexor status 123
+kryx status 123
 ```
 
-### `hexor list`
+### `kryx list`
 
 List recent scans.
 
@@ -115,11 +115,11 @@ List recent scans.
 
 **Example:**
 ```bash
-hexor list
-hexor list --limit 100
+kryx list
+kryx list --limit 100
 ```
 
-### `hexor report <scan_id>`
+### `kryx report <scan_id>`
 
 Get full scan report.
 
@@ -132,12 +132,12 @@ Get full scan report.
 
 **Examples:**
 ```bash
-hexor report 123
-hexor report 123 --output report.md
-hexor report 123 --format json -o scan.json
+kryx report 123
+kryx report 123 --output report.md
+kryx report 123 --format json -o scan.json
 ```
 
-### `hexor exploits <scan_id>`
+### `kryx exploits <scan_id>`
 
 List generated exploits.
 
@@ -146,17 +146,17 @@ List generated exploits.
 
 **Example:**
 ```bash
-hexor exploits 123
+kryx exploits 123
 ```
 
 ## Configuration
 
-Config file: `~/.hexor/config.json`
+Config file: `~/.kryx/config.json`
 
 ```json
 {
   "api_key": "hx_...",
-  "api_url": "https://api.hexor.app"
+  "api_url": "https://api.kryx.app"
 }
 ```
 
@@ -175,15 +175,15 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       
-      - name: Install Hexor CLI
-        run: pip install hexor
+      - name: Install Kryx CLI
+        run: pip install kryx
       
       - name: Run Security Scan
         env:
           HEXOR_API_KEY: ${{ secrets.HEXOR_API_KEY }}
         run: |
-          echo "$HEXOR_API_KEY" | hexor login --api-key $HEXOR_API_KEY
-          hexor scan . --wait
+          echo "$HEXOR_API_KEY" | kryx login --api-key $HEXOR_API_KEY
+          kryx scan . --wait
 ```
 
 ### GitLab CI
@@ -192,9 +192,9 @@ jobs:
 security_scan:
   image: python:3.11
   script:
-    - pip install hexor
-    - echo "$HEXOR_API_KEY" | hexor login --api-key $HEXOR_API_KEY
-    - hexor scan . --wait
+    - pip install kryx
+    - echo "$HEXOR_API_KEY" | kryx login --api-key $HEXOR_API_KEY
+    - kryx scan . --wait
   only:
     - main
     - merge_requests
@@ -205,8 +205,8 @@ security_scan:
 ### Install from source
 
 ```bash
-git clone https://github.com/xxxoff/Hexor.git
-cd Hexor/cli
+git clone https://github.com/xxxoff/Kryx.git
+cd Kryx/cli
 pip install -e .
 ```
 
@@ -218,9 +218,9 @@ pytest tests/
 
 ## Support
 
-- Documentation: https://docs.hexor.app
-- Issues: https://github.com/xxxoff/Hexor/issues
-- Email: support@hexor.app
+- Documentation: https://docs.kryx.app
+- Issues: https://github.com/xxxoff/Kryx/issues
+- Email: support@kryx.app
 
 ## License
 

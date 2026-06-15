@@ -1,12 +1,12 @@
 """
-Vulnyx CLI - Command-line interface for Vulnyx security platform
+Kryx CLI - Command-line interface for Kryx security platform
 
 Usage:
-    vulnyx login
-    vulnyx scan <target>
-    vulnyx status <scan_id>
-    vulnyx list
-    vulnyx report <scan_id>
+    kryx login
+    kryx scan <target>
+    kryx status <scan_id>
+    kryx list
+    kryx report <scan_id>
 """
 import sys
 import os
@@ -26,15 +26,15 @@ from rich.panel import Panel
 console = Console()
 
 # Config file location
-CONFIG_DIR = Path.home() / ".vulnyx"
+CONFIG_DIR = Path.home() / ".kryx"
 CONFIG_FILE = CONFIG_DIR / "config.json"
 
 # Default API endpoint
 DEFAULT_API_URL = "http://localhost:8000"
 
 
-class VulnyxClient:
-    """Client for Hexor API"""
+class KryxClient:
+    """Client for Kryx API"""
     
     def __init__(self):
         self.config = self._load_config()
@@ -42,7 +42,7 @@ class VulnyxClient:
         self.api_key = self.config.get("api_key")
         
         if not self.api_key:
-            console.print("[red]Not logged in. Run 'hexor login' first.[/red]")
+            console.print("[red]Not logged in. Run 'kryx login' first.[/red]")
             sys.exit(1)
         
         self.client = httpx.Client(
@@ -96,16 +96,16 @@ class VulnyxClient:
 @click.group()
 @click.version_option(version="0.1.0")
 def cli():
-    """Vulnyx CLI - AI-powered security scanning"""
+    """Kryx CLI - AI-powered security scanning"""
     pass
 
 
 @cli.command()
-@click.option("--api-key", prompt="API Key", hide_input=True, help="Your Hexor API key")
+@click.option("--api-key", prompt="API Key", hide_input=True, help="Your Kryx API key")
 @click.option("--api-url", default=DEFAULT_API_URL, help="API endpoint URL")
 def login(api_key: str, api_url: str):
-    """Login to Vulnyx (save API credentials)"""
-    client = VulnyxClient.__new__(VulnyxClient)
+    """Login to Kryx (save API credentials)"""
+    client = KryxClient.__new__(KryxClient)
     client.login(api_key, api_url)
 
 
@@ -117,11 +117,11 @@ def scan(target: str, target_type: str, wait: bool):
     """Start a new security scan
     
     Examples:
-        hexor scan /path/to/project
-        hexor scan https://github.com/user/repo
-        hexor scan --type web https://example.com
+        kryx scan /path/to/project
+        kryx scan https://github.com/user/repo
+        kryx scan --type web https://example.com
     """
-    client = VulnyxClient()
+    client = KryxClient()
     
     with console.status("[bold green]Creating scan..."):
         result = client.create_scan(target, target_type)
@@ -132,10 +132,10 @@ def scan(target: str, target_type: str, wait: bool):
     if wait:
         _wait_for_scan(client, scan_id)
     else:
-        console.print(f"\nRun 'hexor status {scan_id}' to check progress")
+        console.print(f"\nRun 'kryx status {scan_id}' to check progress")
 
 
-def _wait_for_scan(client: VulnyxClient, scan_id: int):
+def _wait_for_scan(client: KryxClient, scan_id: int):
     """Wait for scan completion with progress"""
     console.print("\n[bold]Scanning...[/bold]")
     
@@ -232,7 +232,7 @@ def _display_results(scan: dict):
         
         console.print(table)
     
-    console.print(f"\n[dim]Run 'hexor report {scan['id']}' for full report[/dim]")
+    console.print(f"\n[dim]Run 'kryx report {scan['id']}' for full report[/dim]")
 
 
 @cli.command()
@@ -241,9 +241,9 @@ def status(scan_id: int):
     """Check scan status
     
     Example:
-        hexor status 123
+        kryx status 123
     """
-    client = VulnyxClient()
+    client = KryxClient()
     
     try:
         scan = client.get_scan(scan_id)
@@ -287,10 +287,10 @@ def list(limit: int):
     """List recent scans
     
     Example:
-        hexor list
-        hexor list --limit 50
+        kryx list
+        kryx list --limit 50
     """
-    client = VulnyxClient()
+    client = KryxClient()
     
     try:
         scans = client.list_scans(limit)
@@ -340,11 +340,11 @@ def report(scan_id: int, output_format: str, output: Optional[str]):
     """Get full scan report
     
     Examples:
-        hexor report 123
-        hexor report 123 --output report.md
-        hexor report 123 --format json
+        kryx report 123
+        kryx report 123 --output report.md
+        kryx report 123 --format json
     """
-    client = VulnyxClient()
+    client = KryxClient()
     
     try:
         scan = client.get_scan(scan_id)
@@ -380,9 +380,9 @@ def exploits(scan_id: int):
     """List generated exploits for scan
     
     Example:
-        hexor exploits 123
+        kryx exploits 123
     """
-    client = VulnyxClient()
+    client = KryxClient()
     
     try:
         scan = client.get_scan(scan_id)

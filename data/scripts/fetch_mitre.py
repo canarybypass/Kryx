@@ -1,5 +1,5 @@
 """
-MITRE ATT&CK data fetcher for Hexor dataset
+MITRE ATT&CK data fetcher for Kryx dataset
 """
 import json
 import httpx

@@ -41,7 +41,7 @@ async def _progress(update: dict):
 
 async def main():
     target = sys.argv[1] if len(sys.argv) > 1 else "http://testphp.vulnweb.com"
-    print(f"Kryx engine — scanning: {target}  (hunters={HUNTERS}, model={os.getenv('HEXOR_MODEL','default')})")
+    print(f"Kryx engine — scanning: {target}  (hunters={HUNTERS}, model={os.getenv('KRYX_MODEL') or os.getenv('HEXOR_MODEL','default')})")
 
     sup = Supervisor(target, max_hunters=HUNTERS, progress_cb=_progress)
     result = await sup.run()

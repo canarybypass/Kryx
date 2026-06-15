@@ -64,7 +64,7 @@ export default function App() {
 
   return (
     <div style={s.container}>
-      <h1 style={s.title}>Hexor</h1>
+      <h1 style={s.title}>Kryx</h1>
       <p style={s.subtitle}>AI-powered penetration testing - multi-agent harness</p>
       <ScanForm onScan={handleScan} loading={loading} />
       {error && <p style={s.error}>{error}</p>}

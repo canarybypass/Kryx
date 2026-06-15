@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Hexor Benchmark CLI — запуск benchmark из терминала
+Kryx Benchmark CLI — запуск benchmark из терминала
 Usage:
   python benchmark.py                    # все цели
   python benchmark.py --difficulty easy  # только easy цели
@@ -18,7 +18,7 @@ from benchmark.runner import run_benchmark
 
 
 async def main():
-    parser = argparse.ArgumentParser(description="Hexor Benchmark — оценка качества агента")
+    parser = argparse.ArgumentParser(description="Kryx Benchmark — оценка качества агента")
     parser.add_argument(
         "--targets",
         nargs="+",

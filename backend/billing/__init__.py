@@ -1,5 +1,5 @@
 """
-Billing module for Hexor
+Billing module for Kryx
 
 Stripe integration for subscription management.
 """

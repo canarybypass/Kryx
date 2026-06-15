@@ -1,5 +1,5 @@
 """
-Hexor Knowledge Base — Vulnerability Database
+Kryx Knowledge Base — Vulnerability Database
 
 Stores and queries:
 - Known vulnerability patterns

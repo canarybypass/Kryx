@@ -1,4 +1,4 @@
-# Hexor v2.0 — Architecture Design
+# Kryx v2.0 — Architecture Design
 
 **AI-Powered 0-Day Hunting Platform**
 

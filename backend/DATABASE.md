@@ -2,7 +2,7 @@
 
 ## Overview
 
-Enterprise-grade multi-tenant architecture for Hexor 0-day hunting platform.
+Enterprise-grade multi-tenant architecture for Kryx 0-day hunting platform.
 
 ## Entity Relationship Diagram
 
@@ -302,10 +302,10 @@ python migrate_to_v2.py rollback
 
 ```bash
 # PostgreSQL dump
-pg_dump -h localhost -U hexor -d hexor > backup_$(date +%Y%m%d).sql
+pg_dump -h localhost -U kryx -d kryx > backup_$(date +%Y%m%d).sql
 
 # Restore
-psql -h localhost -U hexor -d hexor < backup_20260607.sql
+psql -h localhost -U kryx -d kryx < backup_20260607.sql
 ```
 
 ## Performance Tuning

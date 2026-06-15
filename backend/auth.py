@@ -1,5 +1,5 @@
 """
-Hexor Auth — JWT регистрация, логин, middleware
+Kryx Auth — JWT регистрация, логин, middleware
 """
 import os
 from datetime import datetime, timedelta

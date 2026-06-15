@@ -2,7 +2,7 @@
 
 ## Overview
 
-Hexor integrates with external services via webhooks for automated security scanning.
+Kryx integrates with external services via webhooks for automated security scanning.
 
 ## Supported Platforms
 
@@ -17,7 +17,7 @@ Hexor integrates with external services via webhooks for automated security scan
 
 **Setup:**
 1. Go to repo Settings → Webhooks → Add webhook
-2. Payload URL: `https://your-hexor.com/api/webhooks/github/1`
+2. Payload URL: `https://your-kryx.com/api/webhooks/github/1`
 3. Content type: `application/json`
 4. Secret: (optional) set in org settings
 5. Events: Push, Pull request, Release
@@ -43,7 +43,7 @@ Hexor integrates with external services via webhooks for automated security scan
 
 **Setup:**
 1. Project Settings → Webhooks
-2. URL: `https://your-hexor.com/api/webhooks/gitlab/1`
+2. URL: `https://your-kryx.com/api/webhooks/gitlab/1`
 3. Secret Token: (optional)
 4. Triggers: Push, Merge request, Tag push
 
@@ -104,7 +104,7 @@ Configure custom webhooks for any service.
 If `webhook_secret` configured, payloads are signed:
 
 ```
-X-Hexor-Signature: sha256=<hmac_sha256(secret, payload)>
+X-Kryx-Signature: sha256=<hmac_sha256(secret, payload)>
 ```
 
 Verify:
@@ -126,7 +126,7 @@ if hmac.compare_digest(received_signature, expected):
 ### Test Webhook
 
 ```bash
-curl -X POST https://your-hexor.com/api/integrations/test-webhook \
+curl -X POST https://your-kryx.com/api/integrations/test-webhook \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -138,12 +138,12 @@ curl -X POST https://your-hexor.com/api/integrations/test-webhook \
 ### Test Slack
 
 ```bash
-curl -X POST https://your-hexor.com/api/integrations/slack/notify \
+curl -X POST https://your-kryx.com/api/integrations/slack/notify \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "slack_webhook_url": "https://hooks.slack.com/services/...",
-    "message": "Test notification from Hexor",
+    "message": "Test notification from Kryx",
     "severity": "info"
   }'
 ```
@@ -164,9 +164,9 @@ jobs:
   scan:
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger Hexor Scan
+      - name: Trigger Kryx Scan
         run: |
-          curl -X POST https://hexor.app/api/v2/scans \
+          curl -X POST https://kryx.app/api/v2/scans \
             -H "Authorization: Bearer ${{ secrets.HEXOR_API_KEY }}" \
             -H "Content-Type: application/json" \
             -d '{
@@ -182,7 +182,7 @@ security_scan:
   stage: test
   script:
     - |
-      curl -X POST https://hexor.app/api/v2/scans \
+      curl -X POST https://kryx.app/api/v2/scans \
         -H "Authorization: Bearer $HEXOR_API_KEY" \
         -H "Content-Type: application/json" \
         -d "{\"target\": \"$CI_REPOSITORY_URL\", \"target_type\": \"repo\"}"
@@ -201,7 +201,7 @@ pipeline {
     stage('Security Scan') {
       steps {
         sh '''
-          curl -X POST https://hexor.app/api/v2/scans \
+          curl -X POST https://kryx.app/api/v2/scans \
             -H "Authorization: Bearer $HEXOR_API_KEY" \
             -H "Content-Type: application/json" \
             -d "{\"target\": \"${GIT_URL}\", \"target_type\": \"repo\"}"
@@ -229,4 +229,4 @@ pipeline {
 
 ---
 
-**Need help?** Check logs in `/var/log/hexor/webhooks.log`
+**Need help?** Check logs in `/var/log/kryx/webhooks.log`
