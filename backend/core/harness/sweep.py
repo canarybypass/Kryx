@@ -7,6 +7,7 @@ the LLM "feels like" trying. This guarantees coverage; the LLM hunters then add
 reasoning (chaining, business logic) on top. Findings are tool-confirmed, so
 they're marked exploitability=confirmed and survive validation.
 """
+import os
 import json
 import asyncio
 from urllib.parse import urlparse, parse_qs
@@ -53,9 +54,17 @@ class SweepStage:
         if _is_vuln("sensitive_files", sf):
             findings.append(self._finding("sensitive_files", self.surface["base"], sf, "exposed files"))
 
-        # Per-endpoint deterministic detector pass (concurrent across endpoints).
+        # Per-endpoint deterministic detector pass. Bound concurrency so a big
+        # surface doesn't fork dozens of sqlmap processes at once (full coverage,
+        # just throttled — like a real scanner).
+        sem = asyncio.Semaphore(int(os.getenv("KRYX_SWEEP_CONCURRENCY", "6")))
+
+        async def _bounded(e):
+            async with sem:
+                return await self._sweep_endpoint(e)
+
         results = await asyncio.gather(
-            *[self._sweep_endpoint(e) for e in self.surface.get("endpoints", [])],
+            *[_bounded(e) for e in self.surface.get("endpoints", [])],
             return_exceptions=True,
         )
         for r in results:

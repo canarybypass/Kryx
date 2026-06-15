@@ -539,9 +539,17 @@ async def _idor_probe(url: str) -> dict:
     NOT flagged; only genuinely different records (different owner/data) count.
     Full proof needs two identities — anonymous access to distinct records is a
     strong IDOR signal when the endpoint should be access-controlled."""
+    import re
     import httpx
     from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
     from difflib import SequenceMatcher
+
+    # Markers that the returned object is PRIVATE/per-user data (real IDOR), not
+    # a public resource like a product or blog post.
+    SENS = re.compile(
+        r"[\w.+-]+@[\w-]+\.\w{2,}"  # email
+        r"|\b(token|secret|password|passwd|api[_-]?key|balance|ssn|cvv|iban|"
+        r"salary|passport|private|credit.?card|auth[_-]?token|session)\b", re.I)
 
     if not url.startswith("http"):
         url = f"http://{url}"
@@ -591,17 +599,31 @@ async def _idor_probe(url: str) -> dict:
             ratio = SequenceMatcher(None, base.get("body", ""), o["body"]).ratio()
             if ratio < 0.95:  # genuinely different record, not just a reflected id
                 accessible.append({"id": o["id"], "diff_ratio": round(ratio, 2),
-                                   "preview": o["body"][:140]})
+                                   "preview": o["body"][:140],
+                                   "sensitive": bool(SENS.search(o["body"]))})
 
-    vulnerable = len(accessible) >= 2
+    distinct = len(accessible) >= 2
+    # Only a real IDOR if the other records expose PRIVATE data. Distinct public
+    # records (products, blog posts) are not IDOR — that's the FP we kill here.
+    sensitive = any(a["sensitive"] for a in accessible)
+    vulnerable = distinct and sensitive
+
+    if distinct and not sensitive:
+        note = ("Distinct records enumerable, but no sensitive/PII data found — "
+                "likely a PUBLIC resource (catalog/blog), NOT IDOR.")
+    else:
+        note = ("Other users' private data returned without authorization => "
+                "IDOR/BOLA. Full proof needs two identities.")
+
     return {
         "url": url,
         "vulnerable": vulnerable,
         "id_param": id_param or (f"path segment #{seg_idx}" if seg_idx is not None else None),
         "base_id": base_id,
         "other_records_accessible": accessible,
+        "sensitive_data": sensitive,
         "confidence": "high" if vulnerable else "low",
-        "note": "Distinct per-id records returned without auth => IDOR/BOLA. Full proof needs 2 identities.",
+        "note": note,
     }
 
 
@@ -941,13 +963,17 @@ async def _sqlmap_check(url: str) -> dict:
         return {"error": "sqlmap not installed. Run: sudo apt install sqlmap"}
 
     # --flush-session: never trust a cached verdict from a prior (possibly
-    # interrupted) run. Drop slow time-based(T) technique to fit the budget.
+    # interrupted) run. Level 3 catches boolean payloads that level 2 misses on
+    # real targets (e.g. ginandjuice's category SQLi); BEU keeps the fast,
+    # high-signal techniques (drop slow time-based/stacked). Env-tunable.
+    level = os.getenv("KRYX_SQLMAP_LEVEL", "3")
+    risk = os.getenv("KRYX_SQLMAP_RISK", "2")
     result = await _run([
         "sqlmap", "-u", url,
         "--batch", "--random-agent", "--flush-session",
-        "--level", "2", "--risk", "2",
-        "--technique", "BEUS",
-    ], timeout=150)
+        "--level", level, "--risk", risk,
+        "--technique", "BEU",
+    ], timeout=200)
 
     out = result.get("stdout", "")
     low = out.lower()
