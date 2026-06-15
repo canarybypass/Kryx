@@ -30,6 +30,19 @@ META = {
 URL_KW = ("url", "uri", "link", "fetch", "dest", "redirect", "next", "callback",
           "target", "feed", "img", "image", "load", "proxy", "site", "host", "domain")
 
+# Concrete, class-specific remediation for each deterministic finding.
+REMEDIATION = {
+    "sqlmap_check": "Use parameterized queries / prepared statements; never concatenate user input into SQL. Apply least-privilege DB accounts.",
+    "cmdi_probe": "Never pass user input to a shell. Use subprocess/exec with an argument list and shell=False; validate/allowlist input.",
+    "ssti_probe": "Don't render user input as a template. Use a sandboxed engine with autoescape; never eval() user data.",
+    "lfi_probe": "Canonicalize the path and confine it to a fixed base dir (reject '..'); prefer an allowlist of permitted files.",
+    "xss_probe": "Apply context-aware output encoding; set a strict Content-Security-Policy; sanitize stored content on output.",
+    "dom_xss_probe": "Avoid innerHTML/document.write/eval with untrusted data; use textContent/safe DOM APIs or a sanitizer (DOMPurify).",
+    "idor_probe": "Enforce object-level authorization: verify the requested object belongs to the authenticated user before returning it.",
+    "ssrf_probe": "Allowlist outbound hosts; block internal ranges and cloud metadata (169.254.169.254, 127.0.0.0/8, 10/8, 192.168/16); disable redirects.",
+    "sensitive_files": "Remove the file from the web root; block dotfiles/backups at the server (nginx/apache); rotate any leaked secrets immediately.",
+}
+
 
 def _is_vuln(tool: str, result: dict) -> bool:
     if not isinstance(result, dict):
@@ -126,6 +139,7 @@ class SweepStage:
             "description": f"{title} confirmed by {tool} on {url}.",
             "evidence": json.dumps(result, ensure_ascii=False)[:1500],
             "exploitability": "confirmed",
+            "remediation": REMEDIATION.get(tool, ""),
             "source": "sweep",
             "url": url,
         }
