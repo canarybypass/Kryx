@@ -2,11 +2,44 @@
 Hexor Supervisor — главный оркестратор многоагентной системы
 """
 import json
+import re
 import asyncio
+from urllib.parse import urlparse
 from dataclasses import dataclass, field
+
+
+_SEV_RANK = {"critical": 3, "high": 2, "medium": 1, "low": 0}
+
+
+def _finding_path(f: dict) -> str:
+    """Best-effort endpoint path for a finding (from its url, else its name)."""
+    u = f.get("url", "")
+    if u:
+        return urlparse(u).path or u
+    m = re.search(r"(/[\w./%-]+)", f.get("name", "") or "")
+    return m.group(1) if m else (f.get("name", "") or "")[:40]
+
+
+def _dedupe_findings(findings: list) -> list:
+    """Collapse the same vuln class on the same endpoint across sources,
+    preferring the tool-confirmed (sweep) finding, then higher severity."""
+    best: dict = {}
+    for f in findings:
+        key = (f.get("attack_class"), _finding_path(f))
+        cur = best.get(key)
+        if cur is None:
+            best[key] = f
+            continue
+        pref = (f.get("source") == "sweep", _SEV_RANK.get(f.get("severity"), 0))
+        cur_pref = (cur.get("source") == "sweep", _SEV_RANK.get(cur.get("severity"), 0))
+        if pref > cur_pref:
+            best[key] = f
+    return list(best.values())
 from utils.llm import get_llm
 from core.agents.prompts import RECON_PROMPT
 from core.harness.recon import ReconStage
+from core.harness.crawler import CrawlStage
+from core.harness.sweep import SweepStage
 from core.harness.hunter import HunterStage
 from core.harness.validator import ValidatorStage
 from core.harness.chain_builder import ChainBuilderStage
@@ -40,15 +73,32 @@ class Supervisor:
         # Stage 1: Reconnaissance
         recon = ReconStage(self.target)
         self.result.recon = await recon.run()
-        await self._emit("status", "hunting")
+        await self._emit("status", "crawling")
         await self._emit("recon", self.result.recon)
 
-        # Stage 2: Parallel hunting
+        # Stage 2: Crawl — map the full attack surface (endpoints, params, forms)
+        surface = await CrawlStage(self.target).run()
+        self.result.recon["crawled_endpoints"] = [e["url"] for e in surface.get("endpoints", [])]
+        await self._emit("crawl", {"endpoints": surface.get("endpoint_count", 0)})
+
+        # Stage 3: Deterministic sweep — run every relevant detector on every
+        # discovered endpoint. Guarantees coverage independent of the LLM.
+        await self._emit("status", "sweeping")
+        sweep_findings = await SweepStage(surface, self._emit).run()
+        await self._emit("sweep", {"findings": len(sweep_findings)})
+
+        # Stage 4: Parallel LLM hunting (reasoning on top of the sweep)
+        await self._emit("status", "hunting")
         hunter = HunterStage(self.target, self.result.recon, self.max_hunters, self._emit)
-        self.result.findings = await hunter.run()
+        hunter_findings = await hunter.run()
+
+        # Merge deterministic (tool-confirmed) + LLM findings, then collapse
+        # cross-source duplicates (same vuln class on same endpoint), keeping
+        # the tool-confirmed one.
+        self.result.findings = _dedupe_findings(sweep_findings + hunter_findings)
         await self._emit("findings_raw", self.result.findings)
 
-        # Stage 3: Adversarial validation
+        # Stage 5: Adversarial validation
         validator = ValidatorStage(self.target, self.result.recon, self.result.findings)
         self.result.validated_findings = await validator.run()
         await self._emit("status", "chains")

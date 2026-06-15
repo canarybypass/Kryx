@@ -951,7 +951,14 @@ async def _sqlmap_check(url: str) -> dict:
 
     out = result.get("stdout", "")
     low = out.lower()
-    vulnerable = ("is vulnerable" in low) or ("parameter" in low and "injectable" in low)
+    # Match the VERDICT only — not the per-test "testing '... injectable'" lines
+    # (which appear even when nothing is vulnerable). sqlmap prints the
+    # "Parameter:/Type:/Payload:" block and "is vulnerable" only on a real hit.
+    vulnerable = (
+        "the following injection point" in low
+        or "is vulnerable" in low
+        or ("Parameter:" in out and "Type:" in out and "Payload:" in out)
+    ) and "do not appear to be injectable" not in low
 
     # Pull the injection summary block as evidence.
     evidence = ""
