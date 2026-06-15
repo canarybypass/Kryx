@@ -317,12 +317,8 @@ Perform taint analysis. Find all paths from user-controlled sources to dangerous
                     if parsed and parsed.get("findings"):
                         for f in parsed["findings"]:
                             f["file"] = path
-                            # Adjust line numbers for chunk offset
-                            if "line_start" in f:
-                                f["line_start"] = f["line_start"]
-                            findings.extend(parsed["findings"])
-                        # Emit progress
-                        if self.progress_cb and findings:
+                        findings.extend(parsed["findings"])  # once, not per-finding
+                        if self.progress_cb:
                             await self._emit("file_analyzed", {
                                 "file": path,
                                 "findings_count": len(parsed["findings"]),
