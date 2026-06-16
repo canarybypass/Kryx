@@ -21,11 +21,12 @@ SUPPORTED_EXTENSIONS = {
     ".java", ".rb", ".go", ".cs", ".cpp", ".c",
 }
 
-# Файлы которые пропускаем
-SKIP_PATTERNS = {
-    "node_modules", ".git", "__pycache__", "vendor",
-    "dist", "build", ".venv", "venv", "migrations",
-    "test", "tests", "spec", ".min.js",
+# Directories to skip — matched against path COMPONENTS, not substrings, so
+# "latest"/"testbed"/"test_foo.py" are NOT wrongly skipped (only real test/build dirs).
+SKIP_DIRS = {
+    "node_modules", ".git", "__pycache__", "vendor", "dist", "build",
+    ".venv", "venv", "env", "migrations", "site-packages", ".tox",
+    "tests", "test", "spec", "__tests__", "e2e", ".next", "out", "examples",
 }
 
 # Максимальный размер файла для анализа (байт)
@@ -190,7 +191,7 @@ class CodeAuditor:
                 continue
             if path.suffix not in SUPPORTED_EXTENSIONS:
                 continue
-            if any(skip in str(path) for skip in SKIP_PATTERNS):
+            if set(path.parts) & SKIP_DIRS or path.name.endswith(".min.js"):
                 continue
             if path.stat().st_size > MAX_FILE_SIZE:
                 continue

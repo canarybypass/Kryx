@@ -30,3 +30,6 @@ backend/downloads/
 
 # Autonomous discovery cache
 backend/core/autonomous/bounty_scopes_cache.txt
+
+# Autonomous findings queue (runtime)
+backend/core/autonomous/autonomous_findings.json

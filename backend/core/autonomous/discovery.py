@@ -49,8 +49,32 @@ def load_cached_scopes() -> list[str]:
 
 def sample_targets(n: int = 20) -> list[str]:
     """A sample of concrete (non-wildcard) in-scope domains, ready to queue."""
-    domains = [s for s in load_cached_scopes() if not s.startswith("*.")]
+    domains = [s for s in load_cached_scopes() if not s.startswith("*.") and "*" not in s]
     return domains[:n]
+
+
+async def discover_oss_repos(query: str = "language:python stars:50..2000 pushed:>2025-01-01",
+                             n: int = 10) -> list[dict]:
+    """Find open-source repos to audit (white-box). Default query targets
+    actively-maintained, moderately-popular projects — big enough to matter,
+    small enough to be under-audited (better CVE candidates than huge repos).
+    Reading public source is legal; findings go through responsible disclosure.
+    """
+    url = "https://api.github.com/search/repositories"
+    params = {"q": query, "sort": "updated", "order": "desc", "per_page": str(n)}
+    headers = {"Accept": "application/vnd.github+json"}
+    async with httpx.AsyncClient(timeout=30, follow_redirects=True, headers=headers) as c:
+        r = await c.get(url, params=params)
+        if r.status_code != 200:
+            return []
+        items = r.json().get("items", [])
+    return [{
+        "full_name": it["full_name"],
+        "url": it["html_url"],
+        "stars": it.get("stargazers_count", 0),
+        "language": it.get("language"),
+        "size_kb": it.get("size", 0),
+    } for it in items]
 
 
 if __name__ == "__main__":
