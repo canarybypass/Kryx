@@ -42,6 +42,7 @@ from core.harness.crawler import CrawlStage
 from core.harness.sweep import SweepStage
 from core.harness.logic_hunter import LogicHunter
 from core.harness.hunter import HunterStage
+from core.harness.scan_memory import recall, remember, memory_context
 from core.harness.validator import ValidatorStage
 from core.harness.chain_builder import ChainBuilderStage
 from core.harness.reporter import ReporterStage
@@ -90,8 +91,24 @@ class Supervisor:
 
         # Stage 2: Crawl — map the full attack surface (endpoints, params, forms)
         surface = await CrawlStage(self.target).run()
+
+        # Memory: merge surface from past scans (never lose endpoints) and inject
+        # prior findings into recon so hunters get smarter on repeat targets.
+        mem = recall(self.target)
+        if mem:
+            known = {(e["path"], tuple(sorted(e.get("params", []))))
+                     for e in surface["endpoints"]}
+            for e in mem.get("endpoints", []):
+                key = (e.get("path"), tuple(sorted(e.get("params", []))))
+                if key not in known:
+                    surface["endpoints"].append({"url": e["url"], "path": e["path"],
+                                                 "params": e.get("params", []), "forms": []})
+            self.result.recon["memory"] = memory_context(mem)
+            await self._emit("memory", {"scan_count": mem.get("scan_count"),
+                                        "known_endpoints": len(mem.get("endpoints", []))})
+
         self.result.recon["crawled_endpoints"] = [e["url"] for e in surface.get("endpoints", [])]
-        await self._emit("crawl", {"endpoints": surface.get("endpoint_count", 0)})
+        await self._emit("crawl", {"endpoints": len(surface.get("endpoints", []))})
 
         # Stage 3: Deterministic sweep — run every relevant detector on every
         # discovered endpoint. Guarantees coverage independent of the LLM.
@@ -139,6 +156,17 @@ class Supervisor:
             "chains": len(self.result.attack_chains),
             "by_severity": self._count_by_severity(self.result.validated_findings),
         }
+
+        # Remember this scan (accumulate surface + findings for next time).
+        try:
+            remember(
+                self.target,
+                [{"url": e["url"], "path": e["path"], "params": e.get("params", [])}
+                 for e in surface.get("endpoints", [])],
+                self.result.validated_findings,
+            )
+        except Exception:
+            pass
 
         return self._to_dict()
 

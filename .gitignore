@@ -33,3 +33,6 @@ backend/core/autonomous/bounty_scopes_cache.txt
 
 # Autonomous findings queue (runtime)
 backend/core/autonomous/autonomous_findings.json
+
+# Scan memory (runtime)
+backend/core/harness/scan_memory.json
