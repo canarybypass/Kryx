@@ -40,6 +40,7 @@ from core.agents.prompts import RECON_PROMPT
 from core.harness.recon import ReconStage
 from core.harness.crawler import CrawlStage
 from core.harness.sweep import SweepStage
+from core.harness.logic_hunter import LogicHunter
 from core.harness.hunter import HunterStage
 from core.harness.validator import ValidatorStage
 from core.harness.chain_builder import ChainBuilderStage
@@ -98,15 +99,20 @@ class Supervisor:
         sweep_findings = await SweepStage(surface, self._emit).run()
         await self._emit("sweep", {"findings": len(sweep_findings)})
 
+        # Stage 3b: Business-logic hunting — flaws scanners can't find
+        # (negative price, price/role tampering), confirmed by server response.
+        await self._emit("status", "business_logic")
+        logic_findings = await LogicHunter(surface, self._emit).run()
+        await self._emit("logic", {"findings": len(logic_findings)})
+
         # Stage 4: Parallel LLM hunting (reasoning on top of the sweep)
         await self._emit("status", "hunting")
         hunter = HunterStage(self.target, self.result.recon, self.max_hunters, self._emit)
         hunter_findings = await hunter.run()
 
-        # Merge deterministic (tool-confirmed) + LLM findings, then collapse
-        # cross-source duplicates (same vuln class on same endpoint), keeping
-        # the tool-confirmed one.
-        self.result.findings = _dedupe_findings(sweep_findings + hunter_findings)
+        # Merge deterministic + business-logic + LLM findings, then collapse
+        # cross-source duplicates (same vuln class on same endpoint).
+        self.result.findings = _dedupe_findings(sweep_findings + logic_findings + hunter_findings)
         await self._emit("findings_raw", self.result.findings)
 
         # Stage 5: Adversarial validation
