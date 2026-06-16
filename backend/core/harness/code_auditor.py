@@ -13,7 +13,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from utils.llm import get_llm
-from core.agents.prompts import CODE_TAINT_PROMPT, CODE_VARIANT_PROMPT, CODE_SUMMARY_PROMPT
+from core.agents.prompts import (
+    CODE_TAINT_PROMPT, CODE_VARIANT_PROMPT, CODE_SUMMARY_PROMPT, CODE_VALIDATOR_PROMPT,
+)
 
 # Языки и расширения которые анализируем
 SUPPORTED_EXTENSIONS = {
@@ -85,7 +87,14 @@ class CodeAuditor:
         # Stage 1: Taint analysis — parallel across files
         await self._emit("status", "taint_analysis")
         findings = await self._run_taint_analysis(files)
+
+        # Stage 1b: Adversarial validation — drop false positives (intended
+        # CLI/tool behavior, sanitized paths, non-attacker-controlled sources).
+        await self._emit("status", "validating")
+        raw_count = len(findings)
+        findings = await self._validate_findings(findings)
         result.findings = findings
+        await self._emit("validation", {"raw": raw_count, "kept": len(findings)})
 
         await self._emit("findings", findings)
 
@@ -328,6 +337,52 @@ Perform taint analysis. Find all paths from user-controlled sources to dangerous
                     pass
 
             return findings
+
+    # ── Validation (drop false positives) ───────────────────
+
+    async def _validate_findings(self, findings: list) -> list:
+        """Adversarial per-finding review. Keeps confirmed/uncertain, drops
+        rejected (intended behavior, sanitized, not attacker-controlled)."""
+        if not findings:
+            return findings
+
+        sem = asyncio.Semaphore(10)
+
+        async def check(f: dict):
+            async with sem:
+                prompt = (
+                    f"type: {f.get('type')}\n"
+                    f"file: {f.get('file')}:{f.get('line_start')}\n"
+                    f"source: {f.get('source')}\n"
+                    f"sink: {f.get('sink')}\n"
+                    f"taint_path: {f.get('taint_path')}\n"
+                    f"code:\n{f.get('code_snippet', '')}\n"
+                    f"poc: {f.get('poc', '')}\n\n"
+                    f"Реальная уязвимость или ложное срабатывание?"
+                )
+                try:
+                    v = _parse_json(await self.llm.ask(CODE_VALIDATOR_PROMPT, prompt)) or {}
+                except Exception:
+                    v = {}
+                verdict = v.get("verdict", "uncertain")
+                f["validation"] = {
+                    "verdict": verdict,
+                    "confidence": v.get("confidence"),
+                    "intended": v.get("is_intended_behavior"),
+                    "remote": v.get("is_remote_attacker_controlled"),
+                    "reasoning": v.get("reasoning", ""),
+                }
+                return f, verdict
+
+        results = await asyncio.gather(*[check(f) for f in findings], return_exceptions=True)
+        kept = []
+        for r in results:
+            if isinstance(r, Exception):
+                continue
+            f, verdict = r
+            if verdict != "rejected":
+                kept.append(f)
+        return kept
 
     # ── Variant analysis ────────────────────────────────────
 
