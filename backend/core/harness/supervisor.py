@@ -79,6 +79,7 @@ from core.harness.sweep import SweepStage
 from core.harness.logic_hunter import LogicHunter
 from core.harness.hunter import HunterStage
 from core.harness.scan_memory import recall, remember, memory_context
+from core.harness.auth_context import set_auth, clear_auth, is_authed
 from core.harness.validator import ValidatorStage
 from core.harness.debate import DebateStage
 from core.harness.chain_builder import ChainBuilderStage
@@ -100,10 +101,11 @@ class ScanResult:
 class Supervisor:
     """Главный оркестратор. Координирует все стадии сканирования."""
 
-    def __init__(self, target: str, max_hunters: int = 8, progress_cb=None):
+    def __init__(self, target: str, max_hunters: int = 8, progress_cb=None, auth: dict | None = None):
         self.target = target
         self.max_hunters = max_hunters
         self.progress_cb = progress_cb  # async callback for WebSocket updates
+        self.auth = auth or {}  # {"headers": {...}, "cookies": {...}} for authed scans
         self.result = ScanResult(target=target)
 
     async def run(self) -> dict:
@@ -117,6 +119,11 @@ class Supervisor:
             return {"target": self.target, "error": "unauthorized", "reason": reason,
                     "vulnerabilities": [], "attack_chains": [], "report": "", "recon": {},
                     "stats": self.result.stats}
+
+        # Authenticated scanning: every target request now carries the session.
+        set_auth(self.auth.get("headers"), self.auth.get("cookies"))
+        if is_authed():
+            await self._emit("auth", {"authenticated": True})
 
         await self._emit("status", "recon")
 
@@ -207,6 +214,7 @@ class Supervisor:
         except Exception:
             pass
 
+        clear_auth()  # don't leak this scan's session into the next
         return self._to_dict()
 
     async def _emit(self, event: str, data):

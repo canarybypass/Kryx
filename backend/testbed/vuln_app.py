@@ -75,7 +75,8 @@ class Handler(BaseHTTPRequestHandler):
                             "<a href='/ping?host=127.0.0.1'>ping</a> "
                             "<a href='/download?file=readme.txt'>download</a> "
                             "<a href='/greet?name=guest'>greet</a> "
-                            "<a href='/buy?item=widget&price=100&qty=1'>buy</a>")
+                            "<a href='/buy?item=widget&price=100&qty=1'>buy</a> "
+                            "<a href='/dashboard?q=hi'>dashboard</a>")
 
         elif u.path == "/guestbook":                       # stored XSS
             items = "".join(f"<li>{c}</li>" for c in COMMENTS)  # unescaped on purpose
@@ -132,6 +133,14 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(200, b"<pre>" + data + b"</pre>")
             except Exception as e:
                 self._send(200, f"<pre>fetch error: {e}</pre>")
+
+        elif u.path == "/dashboard":                       # AUTHENTICATED-only zone
+            if "session=secret" not in self.headers.get("Cookie", ""):
+                self._send(401, "<h1>401 — login required</h1>")
+                return
+            term = q.get("q", [""])[0]
+            # reflected XSS reachable ONLY when authenticated
+            self._send(200, f"<h2>Dashboard</h2><div>Search: {term}</div>")
 
         elif u.path == "/buy":                             # business-logic flaw
             # Trusts client-sent price and quantity, no validation (qty<0, price tamper).

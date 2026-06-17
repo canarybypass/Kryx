@@ -53,9 +53,15 @@ class CrawlStage:
         endpoints: dict = {}
         queue: list[tuple[str, int]] = [(self.target, 0)]
 
+        from core.harness.auth_context import auth_headers, auth_cookies
         async with async_playwright() as pw:
             browser = await pw.chromium.launch(headless=True, args=["--no-sandbox"])
-            ctx = await browser.new_context(ignore_https_errors=True)
+            ctx = await browser.new_context(ignore_https_errors=True,
+                                            extra_http_headers=auth_headers() or None)
+            _ck = [{"name": k, "value": v, "url": self.target}
+                   for k, v in auth_cookies().items()]
+            if _ck:
+                await ctx.add_cookies(_ck)
             try:
                 while queue and len(visited) < self.max_pages:
                     url, depth = queue.pop(0)
@@ -147,7 +153,8 @@ class CrawlStage:
         visited: set[str] = set()
         endpoints: dict = {}
         queue: list[tuple[str, int]] = [(self.target, 0)]
-        async with httpx.AsyncClient(timeout=8, follow_redirects=True, verify=False) as client:
+        from core.harness.auth_context import client as _auth_client
+        async with _auth_client(timeout=8, follow_redirects=True, verify=False) as client:
             while queue and len(visited) < self.max_pages:
                 url, depth = queue.pop(0)
                 norm = url.split("#")[0]

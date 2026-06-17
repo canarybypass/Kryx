@@ -7,6 +7,8 @@ import asyncio
 import shutil
 from pathlib import Path
 
+from core.harness.auth_context import client as auth_client, sqlmap_args as _sqlmap_auth_args, auth_cookies, auth_headers
+
 SANDBOX_DIR = Path(os.getenv("KRYX_SANDBOX_DIR") or os.getenv("HEXOR_SANDBOX_DIR", "/tmp/kryx-sandbox"))
 
 # Optional API keys (from .env)
@@ -352,7 +354,7 @@ async def _sensitive_files(url: str) -> dict:
     if not base.startswith("http"):
         base = f"http://{base}"
 
-    async with httpx.AsyncClient(timeout=8, follow_redirects=False, verify=False) as client:
+    async with auth_client(timeout=8, follow_redirects=False, verify=False) as client:
         async def check(path):
             try:
                 r = await client.get(base + path)
@@ -392,7 +394,7 @@ async def _http_probe(url: str) -> dict:
     last_err = None
     for u in urls:
         try:
-            async with httpx.AsyncClient(timeout=10, follow_redirects=True, verify=False) as client:
+            async with auth_client(timeout=10, follow_redirects=True, verify=False) as client:
                 r = await client.get(u)
                 headers = dict(r.headers)
 
@@ -478,7 +480,7 @@ async def _xss_probe(url: str) -> dict:
     PAYLOAD_TAIL = "<svg/onload=alert(1)>"
     findings = []
 
-    async with httpx.AsyncClient(timeout=8, follow_redirects=True, verify=False) as client:
+    async with auth_client(timeout=8, follow_redirects=True, verify=False) as client:
         # 1) Reflected XSS via GET query parameters.
         parsed = urlparse(url)
         params = parse_qs(parsed.query, keep_blank_values=True)
@@ -587,7 +589,7 @@ async def _idor_probe(url: str) -> dict:
         segs[seg_idx] = str(new_id)
         return urlunparse(parsed._replace(path="/".join(segs)))
 
-    async with httpx.AsyncClient(timeout=8, follow_redirects=True, verify=False) as client:
+    async with auth_client(timeout=8, follow_redirects=True, verify=False) as client:
         async def fetch(i):
             try:
                 r = await client.get(build(i))
@@ -667,9 +669,15 @@ async def _dom_xss_probe(url: str) -> dict:
     findings = []
     async with async_playwright() as pw:
         browser = await pw.chromium.launch(headless=True, args=["--no-sandbox"])
+        # carry auth (session cookies + headers) into the browser for authed DOM XSS
+        _origin = f"{parsed.scheme}://{parsed.netloc}"
+        bctx = await browser.new_context(extra_http_headers=auth_headers() or None)
+        _ck = [{"name": k, "value": v, "url": _origin} for k, v in auth_cookies().items()]
+        if _ck:
+            await bctx.add_cookies(_ck)
         try:
             for vector, turl in candidates:
-                page = await browser.new_page()
+                page = await bctx.new_page()
                 try:
                     await page.goto(turl, wait_until="load", timeout=15000)
                     await page.wait_for_timeout(400)  # let onerror fire
@@ -721,7 +729,7 @@ async def _lfi_probe(url: str) -> dict:
           "download", "view", "name", "img", "read", "filename")
 
     findings = []
-    async with httpx.AsyncClient(timeout=8, follow_redirects=True, verify=False) as client:
+    async with auth_client(timeout=8, follow_redirects=True, verify=False) as client:
         params = sorted(qs, key=lambda k: 0 if any(w in k.lower() for w in kw) else 1)
         for pname in params:
             hit = False
@@ -763,7 +771,7 @@ async def _ssti_probe(url: str) -> dict:
         return {"url": url, "vulnerable": False, "note": "No query parameters to test."}
 
     findings = []
-    async with httpx.AsyncClient(timeout=8, follow_redirects=True, verify=False) as client:
+    async with auth_client(timeout=8, follow_redirects=True, verify=False) as client:
         try:
             baseline = (await client.get(url)).text
         except Exception:
@@ -815,7 +823,7 @@ async def _cmdi_probe(url: str) -> dict:
         return {"url": url, "vulnerable": False, "note": "No query parameters to test."}
 
     findings = []
-    async with httpx.AsyncClient(timeout=10, follow_redirects=True, verify=False) as client:
+    async with auth_client(timeout=10, follow_redirects=True, verify=False) as client:
         try:
             baseline = (await client.get(url)).text
         except Exception:
@@ -903,7 +911,7 @@ async def _ssrf_probe(url: str) -> dict:
 
     findings = []
     async with server:
-        async with httpx.AsyncClient(timeout=8, follow_redirects=True, verify=False) as client:
+        async with auth_client(timeout=8, follow_redirects=True, verify=False) as client:
             for pname in params:
                 token = "kx" + secrets.token_hex(4)
                 tokens.add(token)
@@ -979,6 +987,7 @@ async def _sqlmap_check(url: str) -> dict:
         "--batch", "--random-agent", "--flush-session",
         "--level", level, "--risk", risk,
         "--technique", "BEU",
+        *_sqlmap_auth_args(),  # --cookie / --header for authenticated scans
     ], timeout=200)
 
     out = result.get("stdout", "")

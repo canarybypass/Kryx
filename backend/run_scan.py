@@ -47,7 +47,18 @@ async def main():
     target = sys.argv[1] if len(sys.argv) > 1 else "http://testphp.vulnweb.com"
     print(f"Kryx engine — scanning: {target}  (hunters={HUNTERS}, model={os.getenv('KRYX_MODEL') or os.getenv('HEXOR_MODEL','default')})")
 
-    sup = Supervisor(target, max_hunters=HUNTERS, progress_cb=_progress)
+    # Authenticated scan: KRYX_AUTH_COOKIE="session=abc" / KRYX_AUTH_HEADER="Authorization: Bearer x"
+    auth = {}
+    if os.getenv("KRYX_AUTH_COOKIE"):
+        from core.harness.auth_context import parse_cookie_string
+        auth["cookies"] = parse_cookie_string(os.getenv("KRYX_AUTH_COOKIE"))
+    if os.getenv("KRYX_AUTH_HEADER") and ":" in os.getenv("KRYX_AUTH_HEADER"):
+        k, v = os.getenv("KRYX_AUTH_HEADER").split(":", 1)
+        auth["headers"] = {k.strip(): v.strip()}
+    if auth:
+        print(f"  (authenticated scan: {list(auth.get('cookies',{}))=} headers={list(auth.get('headers',{}))})")
+
+    sup = Supervisor(target, max_hunters=HUNTERS, progress_cb=_progress, auth=auth)
     result = await sup.run()
 
     print("\n" + "=" * 60)

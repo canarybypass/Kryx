@@ -65,7 +65,8 @@ class LogicHunter:
             return []
 
         findings = []
-        async with httpx.AsyncClient(timeout=8, follow_redirects=True, verify=False) as client:
+        from core.harness.auth_context import client as _auth_client
+        async with _auth_client(timeout=8, follow_redirects=True, verify=False) as client:
             try:
                 baseline = (await client.get(url)).text[:700]
             except Exception:
