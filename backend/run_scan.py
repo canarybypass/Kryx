@@ -31,6 +31,10 @@ async def _progress(update: dict):
               f"{data['tool']:14} — {data.get('thought','')[:70]}")
     elif event == "recon":
         print(f"  recon: {json.dumps(data, ensure_ascii=False)[:300]}")
+    elif event == "debate":
+        icon = {"attacker": "🗡️  АТАКУЮЩИЙ", "defender": "🛡️  ЗАЩИТНИК",
+                "judge": "⚖️  СУДЬЯ", "system": "  ·"}.get(data.get("role"), data.get("role"))
+        print(f"  [{data.get('finding','')[:30]}] {icon}: {data.get('text','')[:150]}")
     elif event == "findings_raw":
         print(f"\n  raw findings: {len(data)}")
     elif event == "findings_validated":

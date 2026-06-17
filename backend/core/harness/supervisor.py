@@ -80,6 +80,7 @@ from core.harness.logic_hunter import LogicHunter
 from core.harness.hunter import HunterStage
 from core.harness.scan_memory import recall, remember, memory_context
 from core.harness.validator import ValidatorStage
+from core.harness.debate import DebateStage
 from core.harness.chain_builder import ChainBuilderStage
 from core.harness.reporter import ReporterStage
 
@@ -168,9 +169,11 @@ class Supervisor:
         self.result.findings = _dedupe_findings(sweep_findings + logic_findings + hunter_findings)
         await self._emit("findings_raw", self.result.findings)
 
-        # Stage 5: Adversarial validation
-        validator = ValidatorStage(self.target, self.result.recon, self.result.findings)
-        self.result.validated_findings = await validator.run()
+        # Stage 5: Adversarial debate (visible attacker vs defender) — verifies
+        # LLM findings via a live multi-turn debate; tool-confirmed pass through.
+        await self._emit("status", "debate")
+        debate = DebateStage(self.target, self.result.findings, self._emit)
+        self.result.validated_findings = await debate.run()
         await self._emit("status", "chains")
         await self._emit("findings_validated", self.result.validated_findings)
 
