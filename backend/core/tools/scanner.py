@@ -469,6 +469,12 @@ async def _xss_probe(url: str) -> dict:
         i = body.find(needle)
         return body[max(0, i - 40): i + 90] if i >= 0 else ""
 
+    def _is_html(resp):
+        # Reflection is only exploitable XSS if the browser renders it as HTML.
+        # JSON/text/etc. responses are NOT executed -> not XSS.
+        ct = resp.headers.get("content-type", "").lower()
+        return ("html" in ct) or (not ct)
+
     PAYLOAD_TAIL = "<svg/onload=alert(1)>"
     findings = []
 
@@ -482,10 +488,10 @@ async def _xss_probe(url: str) -> dict:
             tp[pname] = m + PAYLOAD_TAIL
             turl = urlunparse(parsed._replace(query=urlencode(tp)))
             try:
-                body = (await client.get(turl)).text
-                if m + PAYLOAD_TAIL in body:
+                r = await client.get(turl)
+                if m + PAYLOAD_TAIL in r.text and _is_html(r):
                     findings.append({"type": "reflected", "vector": f"GET param '{pname}'",
-                                     "context": _ctx(body, m)})
+                                     "context": _ctx(r.text, m)})
             except Exception:
                 pass
 
@@ -510,17 +516,17 @@ async def _xss_probe(url: str) -> dict:
                     await client.post(target, data=data)
                     # stored: re-fetch the form page and the action page
                     for check in {url, target}:
-                        back = (await client.get(check)).text
-                        if m + PAYLOAD_TAIL in back:
+                        rb = await client.get(check)
+                        if m + PAYLOAD_TAIL in rb.text and _is_html(rb):
                             findings.append({"type": "stored",
                                              "vector": f"POST {inputs} -> reflected on {check}",
-                                             "context": _ctx(back, m)})
+                                             "context": _ctx(rb.text, m)})
                             break
                 else:
-                    body = (await client.get(target, params=data)).text
-                    if m + PAYLOAD_TAIL in body:
+                    rf = await client.get(target, params=data)
+                    if m + PAYLOAD_TAIL in rf.text and _is_html(rf):
                         findings.append({"type": "reflected", "vector": f"GET form {inputs}",
-                                         "context": _ctx(body, m)})
+                                         "context": _ctx(rf.text, m)})
             except Exception:
                 pass
 
