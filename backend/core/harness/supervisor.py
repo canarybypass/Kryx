@@ -12,26 +12,62 @@ _SEV_RANK = {"critical": 3, "high": 2, "medium": 1, "low": 0}
 
 
 def _finding_path(f: dict) -> str:
-    """Best-effort endpoint path for a finding (from its url, else its name)."""
+    """Best-effort endpoint path. From url if present, else the longest path-like
+    token in the name (avoids grabbing 'IDOR/BOLA'); '' for site-level findings
+    so same-type site-level findings collapse together."""
     u = f.get("url", "")
     if u:
-        return urlparse(u).path or u
-    m = re.search(r"(/[\w./%-]+)", f.get("name", "") or "")
-    return m.group(1) if m else (f.get("name", "") or "")[:40]
+        p = urlparse(u).path
+        return p if p not in ("", "/") else ""  # root == site-level
+    cands = re.findall(r"/[\w.\-/%?=&]+", f.get("name", "") or "")
+    if cands:
+        return max(cands, key=len).split("?")[0].rstrip("/") or "/"
+    return ""  # site-level
+
+
+_VULN_TYPES = [
+    ("rce", ("command inj", "os command", " rce", "cmdi", "remote code")),
+    ("ssti", ("ssti", "template inj")),
+    ("sqli", ("sql inj", "sqli")),
+    ("idor", ("idor", "bola", "object-level", "object level")),
+    ("ssrf", ("ssrf", "server-side request", "server side request")),
+    ("lfi", ("lfi", "path traversal", "local file")),
+    ("xss", ("xss", "cross-site script", "cross site script")),
+    ("secret", (".env", "exposed sensitive", "secret", "credential")),
+    ("logic", ("business logic", "tampering", "negative")),
+    ("headers", ("security header", "missing header")),
+    ("outdated", ("outdated", "устаревш", "cve-", "apache 2", "php 5")),
+]
+
+
+def _vuln_type(f: dict) -> str:
+    # Detect from the finding's own type/name — NOT attack_class (a coarse
+    # hunter label like "cors_ssrf" wrongly matched headers findings as ssrf).
+    blob = f"{f.get('type', '')} {f.get('name', '')}".lower()
+    for canon, kws in _VULN_TYPES:
+        if any(k in blob for k in kws):
+            return canon
+    return f.get("attack_class") or "other"
+
+
+def _clean_name(s: str) -> str:
+    # Strip stray CJK / control chars some models inject into RU/EN text.
+    return re.sub(r"[　-鿿가-힯\x00-\x08\x0e-\x1f]", "", s or "").strip()
 
 
 def _dedupe_findings(findings: list) -> list:
-    """Collapse the same vuln class on the same endpoint across sources,
-    preferring the tool-confirmed (sweep) finding, then higher severity."""
+    """Collapse the same vuln TYPE on the same endpoint across sources,
+    preferring tool-confirmed (sweep/logic), then higher severity."""
     best: dict = {}
     for f in findings:
-        key = (f.get("attack_class"), _finding_path(f))
+        f["name"] = _clean_name(f.get("name", ""))
+        key = (_vuln_type(f), _finding_path(f))
         cur = best.get(key)
         if cur is None:
             best[key] = f
             continue
-        pref = (f.get("source") == "sweep", _SEV_RANK.get(f.get("severity"), 0))
-        cur_pref = (cur.get("source") == "sweep", _SEV_RANK.get(cur.get("severity"), 0))
+        pref = (f.get("source") in ("sweep", "logic"), _SEV_RANK.get(f.get("severity"), 0))
+        cur_pref = (cur.get("source") in ("sweep", "logic"), _SEV_RANK.get(cur.get("severity"), 0))
         if pref > cur_pref:
             best[key] = f
     return list(best.values())
