@@ -88,6 +88,16 @@ TOOLS_SCHEMA = [
         "parameters": {"url": "string (URL with query parameters)"},
     },
     {
+        "name": "open_redirect_probe",
+        "description": "Test open redirect: injects an external URL into redirect-like params (url=, next=, return=, ...) and confirms the server 3xx-redirects off-site.",
+        "parameters": {"url": "string (URL with query parameters)"},
+    },
+    {
+        "name": "cors_probe",
+        "description": "Test CORS misconfiguration: sends an arbitrary Origin and flags if it's reflected in Access-Control-Allow-Origin (critical with Allow-Credentials).",
+        "parameters": {"url": "string"},
+    },
+    {
         "name": "ssl_audit",
         "description": "SSL/TLS audit: certificate info, cipher suites, vulnerabilities",
         "parameters": {"host": "string"},
@@ -159,6 +169,8 @@ async def run_tool(name: str, params: dict) -> dict:
         "cmdi_probe": _cmdi_probe,
         "lfi_probe": _lfi_probe,
         "ssti_probe": _ssti_probe,
+        "open_redirect_probe": _open_redirect_probe,
+        "cors_probe": _cors_probe,
         "http_probe": _http_probe,
         "ssl_audit": _ssl_audit,
         "sqlmap_check": _sqlmap_check,
@@ -935,6 +947,72 @@ async def _ssrf_probe(url: str) -> dict:
         "tested_params": list(qs.keys()),
         "note": "OOB SSRF: target fetched an attacker-controlled URL. Real external targets need a public collaborator.",
     }
+
+
+_REDIRECT_KW = ("url", "next", "return", "returnurl", "return_url", "redirect",
+                "redir", "dest", "destination", "continue", "goto", "to", "target", "rurl", "u")
+_OOB_DOMAIN = "kryx-oob.example"
+
+
+async def _open_redirect_probe(url: str) -> dict:
+    """Open redirect: inject an external destination into redirect-ish params and
+    confirm the server issues a 3xx Location to our off-site domain."""
+    from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+
+    if not url.startswith("http"):
+        url = f"http://{url}"
+    parsed = urlparse(url)
+    qs = parse_qs(parsed.query, keep_blank_values=True)
+    if not qs:
+        return {"url": url, "vulnerable": False, "note": "No query parameters to test."}
+
+    findings = []
+    async with auth_client(timeout=8, follow_redirects=False, verify=False) as client:
+        for pname in qs:
+            if not any(k == pname.lower() or k in pname.lower() for k in _REDIRECT_KW):
+                continue
+            for payload in (f"https://{_OOB_DOMAIN}/", f"//{_OOB_DOMAIN}/"):
+                tp = {k: v[0] for k, v in qs.items()}
+                tp[pname] = payload
+                turl = urlunparse(parsed._replace(query=urlencode(tp)))
+                try:
+                    r = await client.get(turl)
+                except Exception:
+                    continue
+                loc = r.headers.get("location", "")
+                if r.status_code in (301, 302, 303, 307, 308) and \
+                        loc.lstrip().startswith(("http://" + _OOB_DOMAIN, "https://" + _OOB_DOMAIN, "//" + _OOB_DOMAIN)):
+                    findings.append({"param": pname, "payload": payload,
+                                     "proof": f"302 -> Location: {loc} (off-site)"})
+                    break
+    return {"url": url, "vulnerable": len(findings) > 0, "findings": findings,
+            "note": "Open redirect: server redirects to an attacker-controlled external URL."}
+
+
+async def _cors_probe(url: str) -> dict:
+    """CORS misconfig: send an arbitrary Origin; flag if it's reflected in
+    Access-Control-Allow-Origin (worse with Allow-Credentials: true)."""
+    if not url.startswith("http"):
+        url = f"http://{url}"
+    evil = f"https://evil.{_OOB_DOMAIN}"
+    async with auth_client(timeout=8, follow_redirects=True, verify=False) as client:
+        try:
+            r = await client.get(url, headers={"Origin": evil})
+        except Exception as e:
+            return {"url": url, "vulnerable": False, "error": str(e)}
+
+    acao = r.headers.get("access-control-allow-origin", "")
+    acac = r.headers.get("access-control-allow-credentials", "").lower()
+    vulnerable, severity, detail = False, "medium", ""
+    if acao == evil:
+        vulnerable, detail = True, f"reflects arbitrary Origin ({acao})"
+        if acac == "true":
+            severity, detail = "high", detail + " WITH credentials (session-theft grade)"
+    elif acao == "*" and acac == "true":
+        vulnerable, severity, detail = True, "high", "Allow-Origin '*' together with credentials"
+
+    return {"url": url, "vulnerable": vulnerable, "severity": severity, "evidence": detail,
+            "remediation": "Allowlist specific trusted origins; never reflect arbitrary Origin, and never combine a wildcard/reflected origin with Allow-Credentials."}
 
 
 async def _ssl_audit(host: str) -> dict:

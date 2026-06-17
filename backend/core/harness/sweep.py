@@ -24,6 +24,8 @@ META = {
     "dom_xss_probe": ("DOM-based XSS", "high", "xss_csrf"),
     "idor_probe": ("IDOR / Broken Object-Level Authorization", "critical", "auth_session"),
     "ssrf_probe": ("Server-Side Request Forgery (SSRF)", "high", "cors_ssrf"),
+    "open_redirect_probe": ("Open Redirect", "medium", "cors_ssrf"),
+    "cors_probe": ("CORS Misconfiguration", "medium", "cors_ssrf"),
     "sensitive_files": ("Exposed sensitive file", "high", "config_exposure"),
 }
 
@@ -40,6 +42,8 @@ REMEDIATION = {
     "dom_xss_probe": "Avoid innerHTML/document.write/eval with untrusted data; use textContent/safe DOM APIs or a sanitizer (DOMPurify).",
     "idor_probe": "Enforce object-level authorization: verify the requested object belongs to the authenticated user before returning it.",
     "ssrf_probe": "Allowlist outbound hosts; block internal ranges and cloud metadata (169.254.169.254, 127.0.0.0/8, 10/8, 192.168/16); disable redirects.",
+    "open_redirect_probe": "Validate redirect targets against an allowlist of internal paths/hosts; never redirect to a raw user-supplied URL.",
+    "cors_probe": "Allowlist specific trusted origins; never reflect an arbitrary Origin or combine wildcard/reflected origin with Allow-Credentials.",
     "sensitive_files": "Remove the file from the web root; block dotfiles/backups at the server (nginx/apache); rotate any leaked secrets immediately.",
 }
 
@@ -62,10 +66,16 @@ class SweepStage:
     async def run(self) -> list:
         findings = []
 
-        # Site-level: probe for exposed sensitive files once.
-        sf = await run_tool("sensitive_files", {"url": self.surface.get("base", "")})
+        # Site-level: exposed files + CORS (app-wide behaviors, run once).
+        base = self.surface.get("base", "")
+        sf = await run_tool("sensitive_files", {"url": base})
         if _is_vuln("sensitive_files", sf):
-            findings.append(self._finding("sensitive_files", self.surface["base"], sf, "exposed files"))
+            findings.append(self._finding("sensitive_files", base, sf, "exposed files"))
+        cors = await run_tool("cors_probe", {"url": base})
+        if _is_vuln("cors_probe", cors):
+            cf = self._finding("cors_probe", base, cors, "CORS")
+            cf["severity"] = cors.get("severity", "medium")
+            findings.append(cf)
 
         # Per-endpoint deterministic detector pass. Bound concurrency so a big
         # surface doesn't fork dozens of sqlmap processes at once (full coverage,
@@ -104,7 +114,8 @@ class SweepStage:
         params = endpoint.get("params", [])
         tools = ["dom_xss_probe"]  # hash-based; relevant to any page
         if params:
-            tools += ["sqlmap_check", "xss_probe", "cmdi_probe", "ssti_probe", "lfi_probe"]
+            tools += ["sqlmap_check", "xss_probe", "cmdi_probe", "ssti_probe",
+                      "lfi_probe", "open_redirect_probe"]
             # IDOR only when a param value is numeric
             qs = parse_qs(urlparse(endpoint["url"]).query)
             if any(v and v[0].lstrip("-").isdigit() for v in qs.values()):

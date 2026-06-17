@@ -76,7 +76,9 @@ class Handler(BaseHTTPRequestHandler):
                             "<a href='/download?file=readme.txt'>download</a> "
                             "<a href='/greet?name=guest'>greet</a> "
                             "<a href='/buy?item=widget&price=100&qty=1'>buy</a> "
-                            "<a href='/dashboard?q=hi'>dashboard</a>")
+                            "<a href='/dashboard?q=hi'>dashboard</a> "
+                            "<a href='/redirect?url=/'>redirect</a> "
+                            "<a href='/api/data'>api-data</a>")
 
         elif u.path == "/guestbook":                       # stored XSS
             items = "".join(f"<li>{c}</li>" for c in COMMENTS)  # unescaped on purpose
@@ -141,6 +143,25 @@ class Handler(BaseHTTPRequestHandler):
             term = q.get("q", [""])[0]
             # reflected XSS reachable ONLY when authenticated
             self._send(200, f"<h2>Dashboard</h2><div>Search: {term}</div>")
+
+        elif u.path == "/redirect":                        # open redirect
+            dest = q.get("url", ["/"])[0]
+            self.send_response(302)
+            self.send_header("Location", dest)             # no validation
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
+        elif u.path == "/api/data":                        # CORS misconfiguration
+            origin = self.headers.get("Origin", "")
+            body = json.dumps({"data": "sensitive-user-data"}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            if origin:
+                self.send_header("Access-Control-Allow-Origin", origin)   # reflects any origin
+                self.send_header("Access-Control-Allow-Credentials", "true")  # + creds = critical
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
 
         elif u.path == "/buy":                             # business-logic flaw
             # Trusts client-sent price and quantity, no validation (qty<0, price tamper).
