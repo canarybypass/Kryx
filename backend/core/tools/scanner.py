@@ -564,12 +564,16 @@ async def _idor_probe(url: str) -> dict:
     from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
     from difflib import SequenceMatcher
 
-    # Markers that the returned object is PRIVATE/per-user data (real IDOR), not
-    # a public resource like a product or blog post.
+    # STRONG markers of private/per-user data (real IDOR). Deliberately strict —
+    # incidental words (an email or "private"/"credit" in public product copy)
+    # must NOT trigger. Require an actual secret/credential token or a private
+    # JSON field, which public pages don't carry.
     SENS = re.compile(
-        r"[\w.+-]+@[\w-]+\.\w{2,}"  # email
-        r"|\b(token|secret|password|passwd|api[_-]?key|balance|ssn|cvv|iban|"
-        r"salary|passport|private|credit.?card|auth[_-]?token|session)\b", re.I)
+        r"\b(secret|passwd|password|api[_-]?key|access[_-]?token|auth[_-]?token|"
+        r"private[_-]?token|session[_-]?token|ssn|iban|cvv|routing[_-]?number|"
+        r"social[_-]?security)\b"
+        r"|\"(token|balance|card_number|credit_card|cvv|password|api_key|"
+        r"private_token|access_token)\"\s*:", re.I)
 
     if not url.startswith("http"):
         url = f"http://{url}"

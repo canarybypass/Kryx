@@ -35,7 +35,7 @@ _VULN_TYPES = [
     ("xss", ("xss", "cross-site script", "cross site script")),
     ("secret", (".env", "exposed sensitive", "secret", "credential")),
     ("logic", ("business logic", "tampering", "negative")),
-    ("headers", ("security header", "missing header")),
+    ("headers", ("security header", "missing header", "заголовк", "security-header")),
     ("outdated", ("outdated", "устаревш", "cve-", "apache 2", "php 5")),
 ]
 
