@@ -1,0 +1,11 @@
+# Bug-bounty programs you have CONFIRMED permit AUTOMATED testing.
+# One host per line (use *.example.com for wildcards).
+#
+# Before adding a host: open the program's policy and verify automated
+# scanners/tools are allowed AND respect their rate limits / out-of-scope rules.
+# Being in scope is NOT permission to run automated tools — many programs ban it.
+#
+# Kryx refuses to actively scan a bounty host that is not listed here.
+#
+# Example (only after you verified its policy):
+# *.example-program.com

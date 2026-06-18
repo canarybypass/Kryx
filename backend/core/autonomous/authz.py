@@ -63,12 +63,18 @@ def is_authorized(target: str) -> tuple[bool, str]:
     if m:
         return True, f"authorized scope ({m})"
 
-    # Bug-bounty in-scope (lazy import to avoid hard dependency)
+    # Bug-bounty in-scope — but in-scope is NOT enough: the program must also
+    # permit automated testing (you confirm this in bounty_automation_allowed.txt).
     try:
         from core.autonomous.discovery import load_cached_scopes
+        from core.autonomous.bounty import automation_allowed
         bm = _match(host, load_cached_scopes())
         if bm:
-            return True, f"bug-bounty in-scope ({bm})"
+            if automation_allowed(host):
+                return True, f"bug-bounty in-scope + automation-allowed ({bm})"
+            return False, (f"'{host}' is in a bounty scope ({bm}) but automated testing is "
+                           f"NOT confirmed allowed. Read the program's policy; if it permits "
+                           f"automated tools, add the host to bounty_automation_allowed.txt.")
     except Exception:
         pass
 

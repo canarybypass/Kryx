@@ -44,6 +44,17 @@ async def _progress(update: dict):
 
 
 async def main():
+    # Bounty helper: list in-scope candidate domains to review for automation policy.
+    if len(sys.argv) > 1 and sys.argv[1] == "--bounty-list":
+        from core.autonomous import discovery, bounty
+        if not discovery.load_cached_scopes():
+            print("fetching bounty scopes..."); await discovery.fetch_bounty_scopes()
+        print("In-scope candidates (verify each program's automation policy before adding\n"
+              "to bounty_automation_allowed.txt):\n")
+        for d in bounty.list_inscope_web(30):
+            print("  ", d)
+        return
+
     target = sys.argv[1] if len(sys.argv) > 1 else "http://testphp.vulnweb.com"
     print(f"Kryx engine — scanning: {target}  (hunters={HUNTERS}, model={os.getenv('KRYX_MODEL') or os.getenv('HEXOR_MODEL','default')})")
 
