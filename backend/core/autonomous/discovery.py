@@ -48,9 +48,23 @@ def load_cached_scopes() -> list[str]:
 
 
 def sample_targets(n: int = 20) -> list[str]:
-    """A sample of concrete (non-wildcard) in-scope domains, ready to queue."""
-    domains = [s for s in load_cached_scopes() if not s.startswith("*.") and "*" not in s]
-    return domains[:n]
+    """A sample of concrete (non-wildcard) in-scope domains, ready to queue.
+    Filters junk: wildcards, bare TLDs, IPs, placeholders."""
+    import re
+    out = []
+    for s in load_cached_scopes():
+        if "*" in s or s.count(".") < 1:
+            continue
+        if re.fullmatch(r"[\d.]+", s):           # bare IP
+            continue
+        if s.count(".") == 1 and len(s.split(".")[0]) <= 2:  # ".com"/".uk"-ish junk
+            continue
+        if any(ch in s for ch in "-_") and s.count("-") >= 4:  # placeholder-y
+            continue
+        out.append(s)
+        if len(out) >= n:
+            break
+    return out
 
 
 async def discover_oss_repos(query: str = "language:python stars:50..2000 pushed:>2025-01-01",
