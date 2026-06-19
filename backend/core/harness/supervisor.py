@@ -33,7 +33,8 @@ _VULN_TYPES = [
     ("ssrf", ("ssrf", "server-side request", "server side request")),
     ("lfi", ("lfi", "path traversal", "local file")),
     ("xss", ("xss", "cross-site script", "cross site script")),
-    ("secret", (".env", "exposed sensitive", "secret", "credential")),
+    ("secret", (".env", "env file", "exposed sensitive", "sensitive information",
+                "information disclosure", "secret", "credential")),
     ("logic", ("business logic", "tampering", "negative")),
     ("headers", ("security header", "missing header", "заголовк", "security-header")),
     ("outdated", ("outdated", "устаревш", "cve-", "apache 2", "php 5")),
@@ -43,10 +44,18 @@ _VULN_TYPES = [
 def _vuln_type(f: dict) -> str:
     # Detect from the finding's own type/name — NOT attack_class (a coarse
     # hunter label like "cors_ssrf" wrongly matched headers findings as ssrf).
+    # Keyword match runs FIRST so several nuclei templates that flag the same
+    # known class (e.g. 3 .env templates + our sensitive_files hit) collapse
+    # into one cross-source finding instead of spamming the report.
     blob = f"{f.get('type', '')} {f.get('name', '')}".lower()
     for canon, kws in _VULN_TYPES:
         if any(k in blob for k in kws):
             return canon
+    # No known class matched — for a nuclei hit keep its unique template id so
+    # distinct, novel CVEs on one host don't collapse into each other.
+    vt = f.get("vtype", "")
+    if vt.startswith("nuclei:"):
+        return vt
     return f.get("attack_class") or "other"
 
 

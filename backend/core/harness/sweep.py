@@ -85,6 +85,18 @@ class SweepStage:
             cf["severity"] = cors.get("severity", "medium")
             findings.append(cf)
 
+        # Site-level: nuclei template engine (thousands of known CVE/exposure/
+        # misconfig checks). Runs once on the base; each match is a concrete
+        # signature hit, so it slots in as a tool-confirmed finding.
+        if os.getenv("KRYX_NUCLEI", "1") != "0":
+            nu = await run_tool("nuclei_scan", {"target": base})
+            for nf in nu.get("findings", []):
+                if nf.get("severity") in ("critical", "high", "medium", "low"):
+                    findings.append(self._nuclei_finding(base, nf))
+                    if self.emit:
+                        await self.emit("sweep_hit", {"tool": "nuclei",
+                                                      "template": nf.get("template_id")})
+
         # Per-endpoint deterministic detector pass. Bound concurrency so a big
         # surface doesn't fork dozens of sqlmap processes at once (full coverage,
         # just throttled — like a real scanner).
@@ -155,6 +167,27 @@ class SweepStage:
                 if self.emit:
                     await self.emit("sweep_hit", {"tool": tool, "url": url})
         return found
+
+    def _nuclei_finding(self, base: str, nf: dict) -> dict:
+        name = nf.get("name") or nf.get("template_id") or "nuclei match"
+        at = nf.get("matched_at") or base
+        refs = nf.get("reference") or []
+        return {
+            "name": f"{name} @ {at}",
+            "severity": nf.get("severity", "medium"),
+            "attack_class": "cve_misconfig",
+            # template-id keeps distinct nuclei hits from collapsing in dedup
+            "vtype": f"nuclei:{nf.get('template_id')}",
+            "description": (nf.get("description")
+                            or f"nuclei template '{nf.get('template_id')}' matched on {at}.").strip(),
+            "evidence": json.dumps(nf, ensure_ascii=False)[:1500],
+            "exploitability": "confirmed",
+            "remediation": ("Patch/remediate per the template references: " + "; ".join(refs)) if refs
+                           else "Review the matched template and remediate the underlying issue.",
+            "source": "sweep",
+            "url": at,
+            "tool": "nuclei",
+        }
 
     async def _sweep_body(self, endpoint: dict) -> list:
         url = endpoint["url"]

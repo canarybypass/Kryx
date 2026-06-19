@@ -244,24 +244,72 @@ async def _nmap_scan(target: str) -> dict:
 
 
 async def _nuclei_scan(target: str) -> dict:
+    """Run the nuclei template engine (thousands of community checks for known
+    CVEs, exposures, default creds, misconfigs, takeovers). Structured -jsonl
+    output so each match carries name/severity/where-it-matched as real
+    evidence. Severity filtered to critical/high/medium to cut detection noise."""
     if not _available("nuclei"):
         return {"error": "nuclei not installed. Run: go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest"}
 
-    result = await _run([
+    import tempfile
+
+    # Write results to a file (-jle): it fills incrementally and SURVIVES a
+    # timeout kill, and bypasses _run's stdout truncation (each nuclei line is
+    # multi-KB, so capturing via stdout dropped all but ~2 findings).
+    out_path = tempfile.mktemp(suffix=".jsonl", prefix="kx_nuclei_")
+    cmd = [
         "nuclei", "-u", target,
-        "-severity", "critical,high,medium",
+        "-severity", os.getenv("KRYX_NUCLEI_SEVERITY", "critical,high,medium"),
+        "-jle", out_path,
         "-silent", "-no-color",
-    ], timeout=120)
+        "-rate-limit", os.getenv("KRYX_NUCLEI_RPS", "150"),
+        "-timeout", "8",
+    ]
+    # Scope to high-value, FAST template categories by default (full CVE set
+    # took 4+ min on a real host). KRYX_NUCLEI_FULL=1 runs everything.
+    if os.getenv("KRYX_NUCLEI_FULL", "0") != "1":
+        for d in ("http/exposures/", "http/misconfiguration/",
+                  "http/default-logins/", "http/takeovers/",
+                  "http/vulnerabilities/generic/"):
+            cmd += ["-t", d]
+    result = await _run(cmd, timeout=int(os.getenv("KRYX_NUCLEI_TIMEOUT", "360")))
 
     findings = []
-    for line in result["stdout"].strip().split("\n"):
-        if line.strip():
-            findings.append(line.strip())
+    try:
+        with open(out_path, encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    j = json.loads(line)
+                except Exception:
+                    continue
+                info = j.get("info", {}) or {}
+                findings.append({
+                    "template_id": j.get("template-id"),
+                    "name": info.get("name") or j.get("template-id"),
+                    "severity": (info.get("severity") or "info").lower(),
+                    "matched_at": j.get("matched-at") or j.get("host") or target,
+                    "type": j.get("type"),
+                    "tags": info.get("tags", []),
+                    "description": (info.get("description") or "").strip()[:300],
+                    "reference": info.get("reference") or [],
+                })
+    except FileNotFoundError:
+        pass  # nuclei produced nothing (no matches or it never started)
+    finally:
+        try:
+            os.remove(out_path)
+        except OSError:
+            pass
 
     return {
         "target": target,
+        "vulnerable": len(findings) > 0,
         "findings": findings,
         "count": len(findings),
+        "timed_out": bool(result.get("error")),
     }
 
 
