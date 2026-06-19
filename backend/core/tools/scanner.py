@@ -1109,7 +1109,11 @@ async def _ssrf_probe(url: str) -> dict:
 
     findings = []
     async with server:
-        async with auth_client(timeout=8, follow_redirects=True, verify=False) as client:
+        # follow_redirects=False is critical: an OPEN REDIRECT (/goto?url=...)
+        # returns 302 -> Location: http://127.0.0.1:<our_port>, and if our own
+        # client follows it, WE hit our listener and misreport SSRF. Real SSRF
+        # fires the listener from the target's own server-side fetch regardless.
+        async with auth_client(timeout=8, follow_redirects=False, verify=False) as client:
             for pname in params:
                 token = "kx" + secrets.token_hex(4)
                 tokens.add(token)
