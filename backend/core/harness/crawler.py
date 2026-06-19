@@ -13,6 +13,7 @@ real endpoints. Falls back to a plain HTTP crawl if the browser is unavailable.
 """
 import os
 import re
+import json
 import asyncio
 from urllib.parse import urlparse, urljoin, parse_qs
 
@@ -23,6 +24,18 @@ ASSET_RE = re.compile(r"\.(png|jpe?g|gif|svg|ico|webp|css|js|mjs|woff2?|ttf|eot|
 
 def _is_asset(url: str) -> bool:
     return bool(ASSET_RE.search(urlparse(url).path))
+
+
+def _parse_json_body(post_data: str) -> dict | None:
+    """Return the JSON object an XHR POSTed, or None if it isn't a JSON object.
+    Only objects are usable — they give named fields to fuzz one at a time."""
+    if not post_data:
+        return None
+    try:
+        obj = json.loads(post_data)
+    except (ValueError, TypeError):
+        return None
+    return obj if isinstance(obj, dict) and obj else None
 
 
 class CrawlStage:
@@ -71,8 +84,16 @@ class CrawlStage:
                     visited.add(norm)
 
                     page = await ctx.new_page()
-                    captured: list[str] = []
-                    page.on("request", lambda req: captured.append(req.url))
+                    captured: list = []
+                    def _on_req(req, _cap=captured):
+                        # post_data raises UnicodeDecodeError on binary bodies
+                        # (gzip/protobuf) — we only want text/JSON, so swallow it.
+                        try:
+                            post = req.post_data
+                        except Exception:
+                            post = None
+                        _cap.append((req.method, req.url, post))
+                    page.on("request", _on_req)
                     try:
                         await page.goto(norm, wait_until="networkidle", timeout=15000)
                     except Exception:
@@ -100,10 +121,19 @@ class CrawlStage:
                     # Record the page itself + any GET forms as testable endpoints
                     self._record(norm, forms, endpoints)
 
-                    # Captured XHR/fetch URLs reveal real API endpoints + params
-                    for rurl in captured:
-                        if urlparse(rurl).netloc == self.host and parse_qs(urlparse(rurl).query):
-                            self._record(rurl.split("#")[0], [], endpoints)
+                    # Captured XHR/fetch traffic reveals real API endpoints.
+                    # GET-with-query => param endpoint; POST/PUT-with-JSON-body =>
+                    # a body endpoint the JSON-body probe can fuzz field-by-field.
+                    for rmethod, rurl, rpost in captured:
+                        if urlparse(rurl).netloc != self.host:
+                            continue
+                        if rmethod == "GET":
+                            if parse_qs(urlparse(rurl).query):
+                                self._record(rurl.split("#")[0], [], endpoints)
+                        elif rmethod in ("POST", "PUT", "PATCH", "DELETE") and rpost:
+                            body = _parse_json_body(rpost)
+                            if body:
+                                self._add_body(endpoints, rurl.split("#")[0], rmethod, body)
 
                     # Queue same-host, non-asset links
                     for raw in links:
@@ -136,6 +166,17 @@ class CrawlStage:
                 self._add(endpoints, synth, [])
 
         self._add(endpoints, url, norm_forms, params)
+
+    def _add_body(self, endpoints: dict, url: str, method: str, body: dict):
+        """Record a JSON-body API endpoint (POST/PUT/...) so the JSON-body probe
+        can fuzz each field. Keyed separately from GET endpoints of the same path."""
+        parsed = urlparse(url)
+        keys = sorted(str(k) for k in body.keys())
+        key = (parsed.path, method, frozenset(keys), "json")
+        if key not in endpoints:
+            endpoints[key] = {"url": f"{parsed.scheme}://{parsed.netloc}{parsed.path}",
+                              "path": parsed.path, "params": keys, "forms": [],
+                              "method": method, "body": body}
 
     def _add(self, endpoints: dict, url: str, forms: list, params: list | None = None):
         parsed = urlparse(url)

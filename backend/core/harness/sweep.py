@@ -32,6 +32,14 @@ META = {
 URL_KW = ("url", "uri", "link", "fetch", "dest", "redirect", "next", "callback",
           "target", "feed", "img", "image", "load", "proxy", "site", "host", "domain")
 
+# json_body_probe reports a per-field CLASS; map each to title/severity/remediation.
+JSON_CLASS_META = {
+    "cmdi": ("cmdi_probe", "OS Command Injection (RCE)", "critical", "injection"),
+    "ssti": ("ssti_probe", "Server-Side Template Injection (RCE)", "critical", "injection"),
+    "sqli": ("sqlmap_check", "SQL Injection", "high", "injection"),
+    "xss":  ("xss_probe", "Cross-Site Scripting (XSS)", "high", "xss_csrf"),
+}
+
 # Concrete, class-specific remediation for each deterministic finding.
 REMEDIATION = {
     "sqlmap_check": "Use parameterized queries / prepared statements; never concatenate user input into SQL. Apply least-privilege DB accounts.",
@@ -105,7 +113,9 @@ class SweepStage:
         best: dict = {}
         for f in findings:
             path = urlparse(f.get("url", "")).path or f.get("url", "")
-            key = (f.get("attack_class"), path)
+            # vtype keeps distinct JSON-body classes (cmdi/sqli/ssti all share the
+            # coarse "injection" attack_class) from collapsing into one another.
+            key = (f.get("vtype") or f.get("attack_class"), path)
             if key not in best or rank.get(f["severity"], 0) > rank.get(best[key]["severity"], 0):
                 best[key] = f
         return list(best.values())
@@ -128,6 +138,11 @@ class SweepStage:
         return tools
 
     async def _sweep_endpoint(self, endpoint: dict) -> list:
+        # JSON-body API endpoints (POST/PUT with a captured JSON body) get the
+        # field-by-field JSON-body probe instead of the URL-param detectors.
+        if endpoint.get("body"):
+            return await self._sweep_body(endpoint)
+
         url = endpoint["url"]
         found = []
         for tool in self._detectors_for(endpoint):
@@ -139,6 +154,44 @@ class SweepStage:
                 found.append(self._finding(tool, url, result, endpoint.get("path", "")))
                 if self.emit:
                     await self.emit("sweep_hit", {"tool": tool, "url": url})
+        return found
+
+    async def _sweep_body(self, endpoint: dict) -> list:
+        url = endpoint["url"]
+        method = endpoint.get("method", "POST")
+        found = []
+        try:
+            result = await run_tool("json_body_probe",
+                                    {"url": url, "body": endpoint["body"], "method": method})
+        except Exception:
+            return found
+        if not result.get("vulnerable"):
+            return found
+        where = endpoint.get("path", "") or url
+        for f in result.get("findings", []):
+            meta = JSON_CLASS_META.get(f.get("class", ""))
+            if not meta:
+                continue
+            tool, title, sev, ac = meta
+            field = f.get("field", "?")
+            found.append({
+                "name": f"{title} @ {method} {where} (JSON field '{field}')",
+                "severity": sev,
+                "attack_class": ac,
+                "vtype": f.get("class"),
+                "description": (f"{title} in the JSON body field '{field}' of "
+                                f"{method} {url}. Proof: {f.get('proof', '')}"),
+                "evidence": json.dumps({"method": method, "url": url, "field": field,
+                                        "payload": f.get("payload"), "proof": f.get("proof")},
+                                       ensure_ascii=False)[:1500],
+                "exploitability": "confirmed",
+                "remediation": REMEDIATION.get(tool, ""),
+                "source": "sweep",
+                "url": url,
+            })
+            if self.emit:
+                await self.emit("sweep_hit", {"tool": "json_body_probe", "url": url,
+                                              "class": f.get("class")})
         return found
 
     def _finding(self, tool: str, url: str, result: dict, where: str) -> dict:

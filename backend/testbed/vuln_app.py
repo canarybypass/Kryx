@@ -78,7 +78,17 @@ class Handler(BaseHTTPRequestHandler):
                             "<a href='/buy?item=widget&price=100&qty=1'>buy</a> "
                             "<a href='/dashboard?q=hi'>dashboard</a> "
                             "<a href='/redirect?url=/'>redirect</a> "
-                            "<a href='/api/data'>api-data</a>")
+                            "<a href='/api/data'>api-data</a>"
+                            # JS-fired JSON XHRs so the crawler discovers the
+                            # POST/JSON API endpoints (real SPAs work this way).
+                            "<script>"
+                            "fetch('/api/search',{method:'POST',"
+                            "headers:{'Content-Type':'application/json'},"
+                            "body:JSON.stringify({q:'hi'})});"
+                            "fetch('/api/exec',{method:'POST',"
+                            "headers:{'Content-Type':'application/json'},"
+                            "body:JSON.stringify({host:'127.0.0.1'})});"
+                            "</script>")
 
         elif u.path == "/guestbook":                       # stored XSS
             items = "".join(f"<li>{c}</li>" for c in COMMENTS)  # unescaped on purpose
@@ -213,6 +223,32 @@ class Handler(BaseHTTPRequestHandler):
         if u.path == "/guestbook":
             COMMENTS.append(form.get("comment", [""])[0])   # stored unsanitized
             self._send(200, "<p>Saved. <a href='/guestbook'>back</a></p>")
+
+        elif u.path == "/api/search":                      # SQLi in a JSON body field
+            try:
+                data = json.loads(body)
+            except Exception:
+                data = {}
+            term = str(data.get("q", "")) if isinstance(data, dict) else ""
+            try:
+                cur = DB.execute(f"SELECT id,name FROM users WHERE name LIKE '%{term}%'")
+                rows = cur.fetchall()
+                self._send(200, json.dumps({"results": rows}), ctype="application/json")
+            except Exception as e:
+                # leaks a DB error -> error-based SQLi signature
+                self._send(200, json.dumps({"error": f"sqlite3.OperationalError: {e}"}),
+                           ctype="application/json")
+
+        elif u.path == "/api/exec":                        # cmdi in a JSON body field
+            try:
+                data = json.loads(body)
+            except Exception:
+                data = {}
+            host = str(data.get("host", "127.0.0.1")) if isinstance(data, dict) else "127.0.0.1"
+            import subprocess
+            out = subprocess.getoutput(f"echo PING {host}")   # shell=True -> injectable
+            self._send(200, json.dumps({"out": out}), ctype="application/json")
+
         else:
             self._send(404, "<h1>404</h1>")
 
