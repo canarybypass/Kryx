@@ -13,7 +13,6 @@ import json
 import asyncio
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
-import httpx
 
 from utils.llm import get_llm
 from core.agents.prompts import LOGIC_HUNTER_PROMPT

@@ -410,7 +410,6 @@ async def _sensitive_files(url: str) -> dict:
     """Directly probe a curated list of commonly-exposed sensitive files
     (config, VCS metadata, backups, secrets). Catches files generic
     wordlist bruteforce misses, e.g. /.env."""
-    import httpx
     base = url.rstrip("/")
     if not base.startswith("http"):
         base = f"http://{base}"
@@ -445,7 +444,7 @@ async def _sensitive_files(url: str) -> dict:
 
 
 async def _http_probe(url: str) -> dict:
-    import httpx
+    pass
 
     if not url.startswith("http"):
         urls = [f"https://{url}", f"http://{url}"]
@@ -517,7 +516,6 @@ async def _xss_probe(url: str) -> dict:
       - reflected/stored (POST): forms on the page — submit, then re-fetch and
         see if the marker persists unescaped (stored) or reflects (reflected)
     DOM XSS needs browser_probe. Pass a URL (with params and/or a form)."""
-    import httpx
     import secrets
     import re
     from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, urljoin
@@ -609,7 +607,6 @@ async def _idor_probe(url: str) -> dict:
     Full proof needs two identities — anonymous access to distinct records is a
     strong IDOR signal when the endpoint should be access-controlled."""
     import re
-    import httpx
     from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
     from difflib import SequenceMatcher
 
@@ -771,7 +768,6 @@ async def _lfi_probe(url: str) -> dict:
     """Test path traversal / LFI: inject traversal sequences (several depths and
     encodings) targeting a known sensitive file (/etc/passwd, Windows win.ini).
     Confirmed when the file's signature appears in the response."""
-    import httpx
     import re
     from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
@@ -824,7 +820,6 @@ async def _ssti_probe(url: str) -> dict:
     syntaxes ({{ }}, ${ }, #{ }, <%= %>). If the PRODUCT of two random numbers
     renders in the response, the template engine evaluated our input => SSTI,
     often RCE. Reflection-proof (echo shows the expression, not the product)."""
-    import httpx
     import random
     from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
@@ -876,7 +871,6 @@ async def _cmdi_probe(url: str) -> dict:
     our expression => RCE-class command injection. This beats reflection false
     positives: echoing input back shows the expression text, never the computed
     product. Blind cmdi would need OOB/time-based."""
-    import httpx
     import random
     from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
@@ -1064,7 +1058,6 @@ async def _ssrf_probe(url: str) -> dict:
     listener it fetched an attacker-controlled URL => SSRF confirmed. Catches
     blind SSRF (no response body needed). Real external targets need a public
     collaborator host; for localhost/internal targets this listener works."""
-    import httpx
     import secrets
     import asyncio
     from urllib.parse import urlparse, parse_qs, urlencode, urlunparse

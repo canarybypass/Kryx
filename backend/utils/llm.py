@@ -2,7 +2,6 @@
 Kryx LLM Client — unified interface to multiple LLM providers
 """
 import os
-import json
 import asyncio
 import httpx
 from dotenv import load_dotenv

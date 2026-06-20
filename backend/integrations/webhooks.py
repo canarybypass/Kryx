@@ -22,7 +22,6 @@ from datetime import datetime
 
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 
 from db import Organization, Scan, ScanStatus
 from core.harness.supervisor_v2 import run_pipeline

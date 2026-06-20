@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Annotated, Optional
 import os
+import asyncio
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException, Request
 from pydantic import BaseModel
@@ -9,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.harness.supervisor import Supervisor
 from core.harness.code_auditor import CodeAuditor
-from db import Scan, AuditResult, get_db, SessionLocal
+from db import Scan, ScanStatus, AuditResult, get_db, SessionLocal
 from auth import (
     RegisterRequest, LoginRequest, TokenResponse, UserOut,
     CurrentUser, register, login, SECRET_KEY, ALGORITHM,
@@ -68,7 +69,6 @@ async def create_scan_v2(req: ScanRequestV2, user: CurrentUser, db: DB):
     Returns scan ID immediately, runs in background.
     Use WebSocket /v2/scans/{id}/live for progress.
     """
-    from core.harness.supervisor_v2 import SupervisorV2
     from db import Scan, ScanStatus
     
     # Check org scan limit
@@ -238,7 +238,7 @@ async def scan_live_v2(websocket: WebSocket, scan_id: int):
 
 # ── Billing & Subscriptions ────────────────────────────────
 
-from billing.stripe_integration import BillingService, check_subscription_valid, check_scan_limit
+from billing.stripe_integration import BillingService
 from pydantic import BaseModel as PydanticBaseModel
 
 

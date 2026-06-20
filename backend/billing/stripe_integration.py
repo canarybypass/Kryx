@@ -10,7 +10,7 @@ Handles:
 """
 import os
 from typing import Optional
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import stripe
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -143,7 +143,7 @@ class BillingService:
         if not org.stripe_subscription_id:
             return False
         
-        subscription = stripe.Subscription.modify(
+        stripe.Subscription.modify(
             org.stripe_subscription_id,
             cancel_at_period_end=True
         )

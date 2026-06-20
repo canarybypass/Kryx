@@ -14,7 +14,6 @@ Data sources:
 - NVD CVE database
 - Internal findings
 """
-import json
 from typing import List, Dict, Optional
 from datetime import datetime
 

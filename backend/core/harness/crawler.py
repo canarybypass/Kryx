@@ -14,10 +14,8 @@ real endpoints. Falls back to a plain HTTP crawl if the browser is unavailable.
 import os
 import re
 import json
-import asyncio
 from urllib.parse import urlparse, urljoin, parse_qs
 
-import httpx
 
 ASSET_RE = re.compile(r"\.(png|jpe?g|gif|svg|ico|webp|css|js|mjs|woff2?|ttf|eot|map|mp4|webm|pdf|zip|gz)(\?|$)", re.I)
 

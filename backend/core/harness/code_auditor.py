@@ -4,7 +4,6 @@ Mythos-style: taint analysis + variant analysis по всей кодовой б�
 """
 import asyncio
 import json
-import os
 import re
 import zipfile
 import tarfile

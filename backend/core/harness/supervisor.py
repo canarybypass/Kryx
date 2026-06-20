@@ -1,9 +1,7 @@
 """
 Kryx Supervisor — главный оркестратор многоагентной системы
 """
-import json
 import re
-import asyncio
 from urllib.parse import urlparse
 from dataclasses import dataclass, field
 
@@ -87,8 +85,6 @@ def _dedupe_findings(findings: list) -> list:
         if pref > cur_pref:
             best[key] = f
     return list(best.values())
-from utils.llm import get_llm
-from core.agents.prompts import RECON_PROMPT
 from core.harness.recon import ReconStage
 from core.harness.crawler import CrawlStage
 from core.harness.sweep import SweepStage
@@ -96,7 +92,6 @@ from core.harness.logic_hunter import LogicHunter
 from core.harness.hunter import HunterStage
 from core.harness.scan_memory import recall, remember, memory_context
 from core.harness.auth_context import set_auth, clear_auth, is_authed
-from core.harness.validator import ValidatorStage
 from core.harness.debate import DebateStage
 from core.harness.chain_builder import ChainBuilderStage
 from core.harness.reporter import ReporterStage

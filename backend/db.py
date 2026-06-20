@@ -84,13 +84,8 @@ class Organization(Base):
     # Integrations
     webhook_secret: Mapped[str | None] = mapped_column(String(128))
     slack_webhook_url: Mapped[str | None] = mapped_column(String(512))
-    notification_webhooks: Mapped[list | None] = mapped_column(JSON)
-    
-    # Integrations
-    webhook_secret: Mapped[str | None] = mapped_column(String(128))
-    slack_webhook_url: Mapped[str | None] = mapped_column(String(512))
     notification_webhooks: Mapped[list | None] = mapped_column(JSON)  # List of webhook URLs
-    
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -345,16 +340,6 @@ class AuditResult(Base):
     finished_at: Mapped[datetime | None] = mapped_column(DateTime)
 
     user: Mapped["User"] = relationship()
-
-
-async def init_db():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-
-async def get_db() -> AsyncSession:
-    async with SessionLocal() as session:
-        yield session
 
 
 async def init_db():
