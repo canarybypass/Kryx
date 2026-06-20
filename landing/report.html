@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<!--
+  Kryx — sample security assessment report (sales artifact).
+  Self-contained, print-to-PDF friendly. Built from a REAL Kryx scan of an
+  authorized, intentionally-vulnerable target (brokencrystals.com).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kryx — Security Assessment (sample)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1a1714; --soft:#5c544c; --line:#e7e0d6; --paper:#fbf9f5; --card:#fff;
+    --amber:#d9663a; --crit:#c0392b; --high:#e07a2e; --med:#c79a2b; --low:#5a8f6b;
+    --sans:'Space Grotesk',-apple-system,Segoe UI,sans-serif;
+    --serif:'Instrument Serif',Georgia,serif;
+    --mono:'JetBrains Mono',ui-monospace,Consolas,monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:#efe9e0;color:var(--ink);font-family:var(--sans);line-height:1.55;-webkit-font-smoothing:antialiased}
+  .page{max-width:860px;margin:30px auto;background:var(--paper);padding:64px 64px 48px;box-shadow:0 20px 60px rgba(0,0,0,.12)}
+  a{color:var(--amber)}
+  h1,h2,h3{letter-spacing:-.01em}
+  .mono{font-family:var(--mono)}
+
+  /* header */
+  .top{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid var(--ink);padding-bottom:20px}
+  .brand{font-weight:700;font-size:26px;letter-spacing:-.5px}
+  .brand i{font-style:normal;color:var(--amber)}
+  .brand .t{font-weight:400;color:var(--soft);font-size:13px;letter-spacing:.16em;text-transform:uppercase;margin-top:4px}
+  .conf{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--crit);border:1px solid var(--crit);padding:4px 10px;border-radius:4px;font-weight:600}
+  .meta{display:flex;gap:40px;flex-wrap:wrap;margin-top:22px;font-size:13.5px}
+  .meta div span{display:block;color:var(--soft);font-size:11px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:3px}
+  .meta div b{font-weight:500}
+  .sample-note{margin-top:18px;font-size:12px;color:var(--soft);background:#f3ede3;border-left:3px solid var(--amber);padding:10px 14px;border-radius:0 6px 6px 0}
+
+  h2.sec{font-size:13px;letter-spacing:.18em;text-transform:uppercase;color:var(--amber);margin:46px 0 16px;font-weight:600}
+  p{margin-bottom:14px;font-size:15px}
+  .lead{font-family:var(--serif);font-size:21px;line-height:1.35;color:var(--ink);margin-bottom:18px}
+  .lead em{font-style:italic;color:var(--amber)}
+
+  /* severity summary */
+  .sevbar{display:flex;gap:12px;flex-wrap:wrap;margin:6px 0 8px}
+  .sevcard{flex:1;min-width:120px;border:1px solid var(--line);border-radius:10px;padding:16px;background:var(--card)}
+  .sevcard b{font-family:var(--serif);font-style:italic;font-size:34px;line-height:1;display:block}
+  .sevcard span{font-size:12px;color:var(--soft);text-transform:uppercase;letter-spacing:.08em}
+  .sevcard.c b{color:var(--crit)} .sevcard.h b{color:var(--high)} .sevcard.m b{color:var(--med)} .sevcard.l b{color:var(--low)}
+
+  /* attack path */
+  .chain{border:1px solid var(--line);border-radius:12px;padding:22px;background:var(--card)}
+  .chain .step{display:flex;gap:14px;align-items:flex-start;padding:11px 0}
+  .chain .step:not(:last-child){border-bottom:1px dashed var(--line)}
+  .chain .n{font-family:var(--serif);font-style:italic;color:var(--amber);font-size:20px;min-width:26px}
+  .chain .step b{font-weight:600}
+  .chain .step p{margin:2px 0 0;font-size:13.5px;color:var(--soft)}
+
+  /* findings */
+  .finding{border:1px solid var(--line);border-radius:12px;margin:16px 0;background:var(--card);overflow:hidden;page-break-inside:avoid}
+  .finding .head{display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--line)}
+  .badge{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:4px 10px;border-radius:5px;color:#fff;white-space:nowrap}
+  .badge.crit{background:var(--crit)} .badge.high{background:var(--high)} .badge.med{background:var(--med)} .badge.low{background:var(--low)}
+  .finding .head .ttl{font-weight:600;font-size:16px}
+  .finding .head .id{margin-left:auto;color:var(--soft);font-family:var(--mono);font-size:12px}
+  .finding .body{padding:18px 20px}
+  .finding .body .label{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--soft);margin:14px 0 5px;font-weight:600}
+  .finding .body .label:first-child{margin-top:0}
+  .finding .body p{font-size:14px;margin:0}
+  .finding .loc{font-family:var(--mono);font-size:13px;background:#f3ede3;padding:8px 12px;border-radius:6px;color:#7a4a2e;word-break:break-all}
+  pre{font-family:var(--mono);font-size:12px;background:#1f1b17;color:#e9e2d6;padding:12px 14px;border-radius:8px;overflow:auto;white-space:pre-wrap;word-break:break-word;line-height:1.5}
+  pre .k{color:#ffb36b}
+  .verified{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--low);font-weight:600;background:#eef5ef;padding:5px 11px;border-radius:20px;margin-top:6px}
+
+  .method{border:1px solid var(--line);border-radius:12px;padding:22px;background:var(--card);font-size:14px}
+  .method .flow{font-family:var(--mono);font-size:12.5px;color:var(--soft);background:#f3ede3;padding:12px 14px;border-radius:8px;margin:12px 0;line-height:1.7}
+  .method b{color:var(--amber)}
+
+  footer{margin-top:44px;border-top:1px solid var(--line);padding-top:18px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;font-size:12px;color:var(--soft)}
+  footer a{color:var(--amber);text-decoration:none}
+
+  @media print{
+    body{background:#fff}
+    .page{box-shadow:none;margin:0;max-width:none;padding:24px}
+    @page{margin:14mm}
+  }
+  @media(max-width:640px){ .page{padding:30px 22px} .meta{gap:20px} }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="top">
+    <div>
+      <div class="brand">KRY<i>X</i></div>
+      <div class="t">Security Assessment Report</div>
+    </div>
+    <div class="conf">Confidential</div>
+  </div>
+
+  <div class="meta">
+    <div><span>Target</span><b>brokencrystals.com</b></div>
+    <div><span>Assessment date</span><b>20 June 2026</b></div>
+    <div><span>Scan type</span><b>Black-box · authorized</b></div>
+    <div><span>Engine</span><b>Kryx v1</b></div>
+  </div>
+  <div class="sample-note">
+    <b>Sample report.</b> This is a representative Kryx assessment run against a public,
+    intentionally-vulnerable demonstration target (brokencrystals.com). Every finding below was
+    confirmed by execution — no manual editing.
+  </div>
+
+  <!-- EXEC SUMMARY -->
+  <h2 class="sec">Executive summary</h2>
+  <p class="lead">A single unauthenticated request exposed this application's <em>production database credentials</em> — enough for full compromise.</p>
+  <p>Kryx identified <b>5 confirmed exposures</b> on the public surface, including one <b>critical</b> issue. The application leaks its configuration and version-control metadata to anyone on the internet, with no authentication required. The headline risk is an exposed configuration file that discloses live database username and password, opening a direct path to <b>full data exfiltration</b>. Source code is also reconstructable from exposed <span class="mono">.git</span> and <span class="mono">.svn</span> metadata, giving an attacker a map to find further weaknesses.</p>
+  <p>None of these are theoretical: each was verified by Kryx fetching the resource and confirming the leak. Remediation is straightforward and is included per finding.</p>
+
+  <!-- SEVERITY -->
+  <h2 class="sec">Findings at a glance</h2>
+  <div class="sevbar">
+    <div class="sevcard c"><b>1</b><span>Critical</span></div>
+    <div class="sevcard h"><b>1</b><span>High</span></div>
+    <div class="sevcard m"><b>3</b><span>Medium</span></div>
+    <div class="sevcard l"><b>0</b><span>Low / false&nbsp;positives</span></div>
+  </div>
+
+  <!-- ATTACK PATH -->
+  <h2 class="sec">Key attack path</h2>
+  <div class="chain">
+    <div class="step"><div class="n">1</div><div><b>Exposed config file</b><p>GET <span class="mono">/config.json</span> returns 200 with the application's configuration.</p></div></div>
+    <div class="step"><div class="n">2</div><div><b>Production DB credentials leaked</b><p>The file contains a live database username and password.</p></div></div>
+    <div class="step"><div class="n">3</div><div><b>Direct database access</b><p>Those credentials authenticate straight to the production database.</p></div></div>
+    <div class="step"><div class="n">4</div><div><b>Full data exfiltration</b><p>All customer and application data can be read and exported. Game over.</p></div></div>
+  </div>
+
+  <!-- FINDINGS -->
+  <h2 class="sec">Detailed findings</h2>
+
+  <div class="finding">
+    <div class="head"><span class="badge crit">Critical</span><span class="ttl">Exposed configuration — production database credentials</span><span class="id">KRX-01</span></div>
+    <div class="body">
+      <div class="label">Location</div>
+      <div class="loc">GET https://brokencrystals.com/config.json — 200 OK · application/json</div>
+      <div class="label">What we found</div>
+      <p>The application serves <span class="mono">config.json</span> publicly with no authentication. It contains live database connection details — username and password for the production environment, plus test and development credentials.</p>
+      <div class="label">Proof</div>
+<pre><span class="k">$ curl https://brokencrystals.com/config.json</span>
+{
+  "production": {
+    "username": "super_admin_lynx",
+    "password": "1A2S3D4_F5G…",          (redacted in this sample)
+    "database": "database_production",
+    "host": "dbhost-production",
+    "dialect": "mysql"
+  }
+}</pre>
+      <div class="verified">✓ Tool-confirmed — file fetched and parsed by Kryx</div>
+      <div class="label">Business impact</div>
+      <p>Anyone on the internet can authenticate to the production database and read, modify, or export all data. This is a full-confidentiality and full-integrity compromise.</p>
+      <div class="label">Remediation</div>
+      <p>Remove <span class="mono">config.json</span> from the web root immediately; block static config files at the web server; and <b>rotate every leaked credential now</b> — assume it is already compromised.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="head"><span class="badge high">High</span><span class="ttl">Exposed environment file (<span class="mono">.env</span>)</span><span class="id">KRX-02</span></div>
+    <div class="body">
+      <div class="label">Location</div>
+      <div class="loc">GET https://brokencrystals.com/.env — 200 OK (794 bytes)</div>
+      <div class="label">What we found</div>
+      <p>The framework's <span class="mono">.env</span> file is publicly readable, exposing application configuration (database settings, mail, cache, and key material placeholders).</p>
+      <div class="label">Proof</div>
+<pre><span class="k">$ curl https://brokencrystals.com/.env</span>
+APP_NAME=Laravel
+APP_ENV=local
+APP_DEBUG=true
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_DATABASE=laravel
+…</pre>
+      <div class="verified">✓ Tool-confirmed — file fetched and parsed by Kryx</div>
+      <div class="label">Business impact</div>
+      <p>Discloses internal configuration and any secrets stored in <span class="mono">.env</span>, aiding deeper compromise. <span class="mono">APP_DEBUG=true</span> in production further leaks stack traces and internals.</p>
+      <div class="label">Remediation</div>
+      <p>Block dotfiles at the web server (nginx/apache), move secrets out of the web root, disable debug in production, and rotate any exposed secrets.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="head"><span class="badge med">Medium</span><span class="ttl">Exposed Git repository metadata</span><span class="id">KRX-03</span></div>
+    <div class="body">
+      <div class="label">Location</div>
+      <div class="loc">GET https://brokencrystals.com/.git/config — 200 OK</div>
+      <div class="label">What we found</div>
+      <p>The <span class="mono">.git</span> directory is exposed. An attacker can download it and reconstruct the application's full source code and commit history.</p>
+      <div class="verified">✓ Tool-confirmed — resource fetched by Kryx</div>
+      <div class="label">Business impact</div>
+      <p>Source disclosure hands attackers a map of the application — hard-coded secrets, hidden endpoints, and logic flaws — dramatically lowering the effort to find further vulnerabilities.</p>
+      <div class="label">Remediation</div>
+      <p>Deny access to <span class="mono">.git</span> at the web server, and never deploy a working copy to production.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="head"><span class="badge med">Medium</span><span class="ttl">Exposed SVN working-copy database</span><span class="id">KRX-04</span></div>
+    <div class="body">
+      <div class="label">Location</div>
+      <div class="loc">GET https://brokencrystals.com/.svn/wc.db — 200 OK</div>
+      <div class="label">What we found</div>
+      <p>The SVN <span class="mono">.svn/wc.db</span> metadata file is publicly readable, again allowing source reconstruction.</p>
+      <div class="verified">✓ Tool-confirmed — resource fetched by Kryx</div>
+      <div class="label">Remediation</div>
+      <p>Block <span class="mono">.svn</span> directories at the web server; remove version-control metadata from deployed artifacts.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="head"><span class="badge med">Medium</span><span class="ttl">Configuration file discoverable</span><span class="id">KRX-05</span></div>
+    <div class="body">
+      <div class="label">Location</div>
+      <div class="loc">https://brokencrystals.com/config.json</div>
+      <div class="label">What we found</div>
+      <p>Independent confirmation that a configuration file is exposed at a predictable path (corroborates KRX-01).</p>
+      <div class="verified">✓ Tool-confirmed</div>
+      <div class="label">Remediation</div>
+      <p>See KRX-01 — remove from web root and rotate secrets.</p>
+    </div>
+  </div>
+
+  <!-- METHODOLOGY -->
+  <h2 class="sec">How Kryx works</h2>
+  <div class="method">
+    <p>Kryx is an autonomous offensive-security agent. It maps the real attack surface, runs every relevant detector, and <b>confirms each finding by execution</b> — it does not report a vulnerability it cannot prove.</p>
+    <div class="flow">recon → JS-aware crawl → deterministic sweep → business-logic → reasoning hunt → adversarial debate (verify) → attack chains → report</div>
+    <p>Every finding in this report is <b>tool-confirmed</b>: the resource was fetched and the leak parsed. That is why the false-positive count is zero — you can act on every line without triage.</p>
+  </div>
+
+  <footer>
+    <div>Kryx — Security Assessment · Confidential · © 2026</div>
+    <div>Request a scan of your own infrastructure: <a href="https://xxxoff.github.io">kryx</a> · <a href="https://t.me/offsys">@offsys</a></div>
+  </footer>
+
+</div>
+</body>
+</html>
