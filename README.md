@@ -3,7 +3,7 @@
 # ⚡ Kryx
 
 **Autonomous AI offensive-security agent.**
-Finds vulnerabilities, **proves** each one by execution, chains them to real impact, and writes the fix —
+Finds vulnerabilities, **proves** each one by execution, chains them to real impact, and writes the fix -
 across live web apps and source code. Reasoning where scanners are blind; low-noise where scanners are loud.
 
 </div>
@@ -12,7 +12,7 @@ across live web apps and source code. Reasoning where scanners are blind; low-no
 
 ## What it does
 
-### 🎯 Black-box — live targets
+### 🎯 Black-box - live targets
 A deterministic pipeline maps the real attack surface and confirms every vuln with a tool, so findings are proven, not guessed:
 
 ```
