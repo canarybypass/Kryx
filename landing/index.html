@@ -15,12 +15,12 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 <style>
   :root{
-    --ink:#06060a; --ink2:#0c0c12; --paper:#f4f1ea;
-    --text:#eceef2; --muted:#9a9aa6;
-    --a1:#9dff3c;  /* electric lime */
-    --a2:#7b5cff;  /* iris */
-    --a3:#2fd9ff;  /* cyan */
-    --a4:#ff5db1;  /* pink */
+    --ink:#0c0708; --ink2:#140b0c; --paper:#f5efe9;
+    --text:#f5efe9; --muted:#a2968d;
+    --a1:#ff9f45;  /* amber */
+    --a2:#ff6a4d;  /* coral */
+    --a3:#ff4d8d;  /* coral-magenta */
+    --a4:#ff3da0;  /* magenta */
     --sans:'Space Grotesk',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
     --serif:'Instrument Serif',Georgia,serif;
   }
@@ -58,13 +58,13 @@
   .lang button{background:none;border:0;color:var(--muted);cursor:pointer;padding:4px 6px;transition:color .2s}
   .lang button.on{color:var(--a1)}
   .cta{position:relative;display:inline-flex;align-items:center;gap:8px;background:var(--a1);color:#06060a;font-weight:600;font-size:14px;padding:12px 22px;border-radius:100px;transition:transform .25s cubic-bezier(.2,.8,.2,1),box-shadow .25s;text-decoration:none;border:0;cursor:pointer}
-  .cta:hover{box-shadow:0 0 40px rgba(157,255,60,.45)}
+  .cta:hover{box-shadow:0 0 44px rgba(255,127,80,.5)}
 
   /* ── hero ── */
   .hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding-top:78px;position:relative}
   .eyebrow{font-size:13px;letter-spacing:.28em;text-transform:uppercase;color:var(--muted);margin-bottom:30px;display:flex;align-items:center;gap:12px}
   .eyebrow::before{content:"";width:30px;height:1px;background:var(--a1)}
-  h1{font-weight:500;font-size:clamp(48px,9.5vw,130px);line-height:.94;letter-spacing:-.03em}
+  h1{font-weight:500;font-size:clamp(38px,6vw,76px);line-height:1.0;letter-spacing:-.025em}
   h1 em{font-family:var(--serif);font-style:italic;font-weight:400;
     background:linear-gradient(105deg,var(--a1),var(--a3),var(--a2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;padding-right:.06em}
   .hero p.sub{margin-top:34px;max-width:46ch;font-size:clamp(16px,1.9vw,20px);color:var(--muted);font-weight:300}
@@ -81,13 +81,13 @@
 
   /* ── manifesto ── */
   .manifesto{padding:18vh 0}
-  .manifesto h2{font-weight:400;font-size:clamp(30px,5.2vw,68px);line-height:1.08;letter-spacing:-.02em;max-width:18ch}
+  .manifesto h2{font-weight:400;font-size:clamp(24px,3.4vw,44px);line-height:1.12;letter-spacing:-.02em;max-width:20ch}
   .manifesto h2 em{font-family:var(--serif);font-style:italic;color:var(--a1)}
   .manifesto h2 .mut{color:var(--muted)}
 
   /* ── marquee ── */
   .marquee{padding:46px 0;border-top:1px solid rgba(255,255,255,.08);border-bottom:1px solid rgba(255,255,255,.08);overflow:hidden;white-space:nowrap;-webkit-mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent);mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent)}
-  .mq{display:inline-flex;gap:42px;animation:scroll 28s linear infinite;font-family:var(--serif);font-style:italic;font-size:clamp(26px,4vw,52px);color:#fff}
+  .mq{display:inline-flex;gap:42px;animation:scroll 28s linear infinite;font-family:var(--serif);font-style:italic;font-size:clamp(20px,2.8vw,34px);color:#fff}
   .mq span{opacity:.55;transition:opacity .3s}
   .marquee:hover .mq{animation-play-state:paused}
   .mq b{color:var(--a1);font-family:var(--sans);font-style:normal;font-weight:400}
@@ -98,21 +98,21 @@
   .caps .lead{font-size:13px;letter-spacing:.28em;text-transform:uppercase;color:var(--muted);margin-bottom:60px}
   .row{display:grid;grid-template-columns:90px 1fr;gap:30px;padding:38px 0;border-top:1px solid rgba(255,255,255,.09);align-items:baseline}
   .row .num{font-family:var(--serif);font-style:italic;font-size:30px;color:var(--a1)}
-  .row h3{font-weight:500;font-size:clamp(24px,3.4vw,40px);letter-spacing:-.02em;line-height:1.1}
+  .row h3{font-weight:500;font-size:clamp(19px,2.4vw,29px);letter-spacing:-.02em;line-height:1.15}
   .row p{color:var(--muted);font-weight:300;font-size:16px;margin-top:14px;max-width:60ch}
   .row:hover h3{color:var(--a1);transition:color .3s}
 
   /* ── proof ── */
   .proof{padding:18vh 0;text-align:center}
   .proof .kick{font-size:13px;letter-spacing:.28em;text-transform:uppercase;color:var(--muted);margin-bottom:34px}
-  .proof .big{font-weight:400;font-size:clamp(34px,6vw,84px);line-height:1.05;letter-spacing:-.02em;max-width:20ch;margin:0 auto}
+  .proof .big{font-weight:400;font-size:clamp(26px,4vw,52px);line-height:1.1;letter-spacing:-.02em;max-width:22ch;margin:0 auto}
   .proof .big em{font-family:var(--serif);font-style:italic;color:var(--a1)}
   .proof .meta{margin-top:40px;display:inline-flex;gap:40px;flex-wrap:wrap;justify-content:center;color:var(--muted);font-size:14px}
   .proof .meta b{color:#fff;font-weight:500;display:block;font-size:30px;font-family:var(--serif);font-style:italic}
 
   /* ── contact ── */
   .contact{padding:16vh 0 12vh}
-  .contact h2{font-weight:400;font-size:clamp(40px,8vw,108px);line-height:.95;letter-spacing:-.03em}
+  .contact h2{font-weight:400;font-size:clamp(32px,5vw,62px);line-height:1.0;letter-spacing:-.025em}
   .contact h2 em{font-family:var(--serif);font-style:italic;color:var(--a1)}
   .contact .sub{color:var(--muted);font-weight:300;font-size:18px;margin-top:26px;max-width:48ch}
   form{margin-top:50px;max-width:560px;display:flex;flex-direction:column;gap:0}
