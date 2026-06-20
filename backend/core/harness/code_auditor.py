@@ -4,7 +4,9 @@ Mythos-style: taint analysis + variant analysis по всей кодовой б�
 """
 import asyncio
 import json
+import os
 import re
+import shutil
 import zipfile
 import tarfile
 import tempfile
@@ -92,8 +94,17 @@ class CodeAuditor:
         await self._emit("status", "validating")
         raw_count = len(findings)
         findings = await self._validate_findings(findings)
-        result.findings = findings
         await self._emit("validation", {"raw": raw_count, "kept": len(findings)})
+
+        # Stage 1c: deterministic scanners — semgrep (SAST) + gitleaks (secrets).
+        # Tool-confirmed (rule/signature match), so they bypass LLM validation and
+        # add proven, low-false-positive findings alongside the reasoning pass.
+        await self._emit("status", "static_scanners")
+        static = await self._run_static_scanners(code_dir)
+        if static:
+            await self._emit("static_scanners", {"findings": len(static)})
+        findings = findings + static
+        result.findings = findings
 
         await self._emit("findings", findings)
 
@@ -483,6 +494,131 @@ Write the full professional code audit report in Russian markdown."""
             t = f.get("type", "unknown")
             counts[t] = counts.get(t, 0) + 1
         return counts
+
+    # ── Deterministic scanners (semgrep SAST + gitleaks secrets) ──
+
+    @staticmethod
+    def _tool_path(name: str, *fallbacks: str) -> str | None:
+        """Resolve a CLI: PATH first, then known isolated install locations
+        (semgrep via pipx in ~/.local/bin, gitleaks via `go install` in ~/go/bin)."""
+        p = shutil.which(name)
+        if p:
+            return p
+        for f in fallbacks:
+            fp = os.path.expanduser(f)
+            if os.path.exists(fp):
+                return fp
+        return None
+
+    @staticmethod
+    async def _sh(cmd: list[str], timeout: int = 180) -> tuple[str, str]:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        try:
+            out, err = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        except asyncio.TimeoutError:
+            proc.kill()
+            return "", "timeout"
+        return out.decode("utf-8", "replace"), err.decode("utf-8", "replace")
+
+    async def _run_static_scanners(self, code_dir: Path) -> list:
+        results = await asyncio.gather(
+            self._semgrep(code_dir), self._gitleaks(code_dir),
+            return_exceptions=True)
+        findings: list = []
+        for r in results:
+            if isinstance(r, list):
+                findings.extend(r)
+        return findings
+
+    async def _semgrep(self, code_dir: Path) -> list:
+        """SAST: thousands of community rules. Each hit is a concrete rule match,
+        so it ships as a tool-confirmed finding (not an LLM guess)."""
+        bin_ = self._tool_path("semgrep", "~/.local/bin/semgrep")
+        if not bin_:
+            return []
+        # Public rule packs (no login / no metrics needed). `--config auto` is
+        # avoided: it refuses to run with metrics off.
+        cfgs = os.getenv("KRYX_SEMGREP_RULES", "p/security-audit,p/owasp-top-ten").split(",")
+        cmd = [bin_, "scan", "--json", "--quiet", "--metrics=off",
+               "--timeout", "60", "--max-target-bytes", "2000000"]
+        for c in cfgs:
+            cmd += ["--config", c.strip()]
+        cmd.append(str(code_dir))
+        out, _ = await self._sh(cmd, timeout=int(os.getenv("KRYX_SEMGREP_TIMEOUT", "300")))
+        try:
+            data = json.loads(out or "{}")
+        except Exception:
+            return []
+        sev_map = {"ERROR": "high", "WARNING": "medium", "INFO": "low"}
+        findings = []
+        for r in data.get("results", []):
+            extra = r.get("extra", {}) or {}
+            meta = extra.get("metadata", {}) or {}
+            check = r.get("check_id", "rule")
+            cwe = meta.get("cwe")
+            findings.append({
+                "name": check.split(".")[-1].replace("-", " ").title(),
+                "type": "sast",
+                "severity": sev_map.get(extra.get("severity", "WARNING"), "medium"),
+                "file": self._rel(r.get("path", ""), code_dir),
+                "line": (r.get("start", {}) or {}).get("line"),
+                "description": extra.get("message", "")[:600],
+                "evidence": (extra.get("lines", "") or "")[:400],
+                "recommendation": "; ".join(meta.get("references", [])[:2])
+                                  or "Review and remediate the flagged pattern.",
+                "cwe": cwe[0] if isinstance(cwe, list) and cwe else cwe,
+                "confidence": "high",
+                "source": "semgrep",
+            })
+        return findings
+
+    async def _gitleaks(self, code_dir: Path) -> list:
+        """Secret scanning: hardcoded API keys, tokens, credentials in the source."""
+        bin_ = self._tool_path("gitleaks", "~/go/bin/gitleaks")
+        if not bin_:
+            return []
+        report = tempfile.mktemp(suffix=".json", prefix="kx_gitleaks_")
+        await self._sh([
+            bin_, "detect", "--source", str(code_dir), "--no-git",
+            "--report-format", "json", "--report-path", report,
+            "--exit-code", "0", "--no-banner",
+        ], timeout=int(os.getenv("KRYX_GITLEAKS_TIMEOUT", "180")))
+        findings = []
+        try:
+            with open(report, encoding="utf-8", errors="replace") as fh:
+                leaks = json.load(fh)
+        except Exception:
+            leaks = []
+        finally:
+            try:
+                os.remove(report)
+            except OSError:
+                pass
+        for lk in leaks or []:
+            secret = str(lk.get("Secret", ""))
+            masked = (secret[:4] + "…" + secret[-2:]) if len(secret) > 8 else "***"
+            rule = lk.get("RuleID") or lk.get("Description") or "secret"
+            findings.append({
+                "name": f"Hardcoded secret: {rule}",
+                "type": "secret",
+                "severity": "high",
+                "file": self._rel(lk.get("File", ""), code_dir),
+                "line": lk.get("StartLine"),
+                "description": lk.get("Description", "A secret/credential was committed to source."),
+                "evidence": f"rule={rule} match≈{masked}",  # redacted — never store the raw secret
+                "recommendation": "Rotate this secret immediately and remove it from the source (and git history).",
+                "confidence": "high",
+                "source": "gitleaks",
+            })
+        return findings
+
+    @staticmethod
+    def _rel(path: str, base: Path) -> str:
+        try:
+            return str(Path(path).resolve().relative_to(Path(base).resolve()))
+        except Exception:
+            return path
 
     def _to_dict(self, result: AuditResult) -> dict:
         return {
