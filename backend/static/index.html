@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vulnyx - AI Security Scanner</title>
+    <title>Kryx - AI Security Scanner</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -139,7 +139,7 @@
 <body>
     <div class="container">
         <header>
-            <h1>⚡ Vulnyx</h1>
+            <h1>⚡ Kryx</h1>
             <p class="subtitle">AI-Powered Security Scanning Platform</p>
         </header>
 
@@ -183,7 +183,7 @@
                 const res = await fetch(`${API_URL}/health`);
                 const data = await res.json();
                 document.getElementById('apiStatus').className = 'api-status connected';
-                document.getElementById('apiStatus').innerHTML = `✅ Connected to Vulnyx API v2.0`;
+                document.getElementById('apiStatus').innerHTML = `✅ Connected to Kryx API v2.0`;
             } catch (err) {
                 document.getElementById('apiStatus').className = 'api-status error';
                 document.getElementById('apiStatus').innerHTML = `❌ Cannot connect to API at ${API_URL}`;

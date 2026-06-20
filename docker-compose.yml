@@ -22,7 +22,7 @@ services:
     env_file: ./backend/.env
     environment:
       DATABASE_URL: postgresql+asyncpg://kryx:kryx@postgres:5432/kryx
-      VULNYX_SANDBOX_DIR: /tmp/kryx-sandbox
+      KRYX_SANDBOX_DIR: /tmp/kryx-sandbox
     volumes:
       - sandbox:/tmp/kryx-sandbox
     depends_on:
