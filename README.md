@@ -104,7 +104,7 @@ cd backend && ./venv/bin/python -m pytest tests/ -q
 Kryx **only** actively scans hosts that are local/lab, listed in
 `backend/core/autonomous/authorized_scopes.txt`, or in a fetched bug-bounty scope
 whose program permits automated testing. Everything else is refused. The gate is
-covered by tests — **only test what you're authorized to test.**
+covered by tests - **only test what you're authorized to test.**
 
 ---
 
@@ -117,4 +117,4 @@ covered by tests — **only test what you're authorized to test.**
 
 ---
 
-© Kryx — proprietary. All rights reserved. See [LICENSE](LICENSE).
+© Kryx - proprietary. All rights reserved. See [LICENSE](LICENSE).
