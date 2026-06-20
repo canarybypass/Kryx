@@ -19,7 +19,15 @@ from fastapi.responses import HTMLResponse
 
 from core.harness.supervisor import Supervisor
 
-ACCESS_KEY = os.getenv("KRYX_WEB_KEY", "changeme")
+ACCESS_KEY = (os.getenv("KRYX_WEB_KEY") or "").strip()
+if not ACCESS_KEY or ACCESS_KEY in ("changeme", "change-me") or len(ACCESS_KEY) < 6:
+    raise RuntimeError(
+        "KRYX_WEB_KEY is unset or too weak — the console refuses to start without "
+        "a real access key (anyone reaching the URL could use your machine to scan).\n"
+        "Set a strong one, e.g.:\n"
+        "  KRYX_WEB_KEY=$(python -c 'import secrets; print(secrets.token_urlsafe(24))') "
+        "./venv/bin/uvicorn webapp:app --host 0.0.0.0 --port 8000"
+    )
 MAX_HUNTERS = int(os.getenv("KRYX_HUNTERS", "6"))
 
 app = FastAPI(title="Kryx Console")

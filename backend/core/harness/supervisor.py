@@ -64,13 +64,20 @@ def _clean_name(s: str) -> str:
     return re.sub(r"[　-鿿가-힯\x00-\x08\x0e-\x1f]", "", s or "").strip()
 
 
+# Host-wide concerns: the same issue at different paths is ONE finding. Stops
+# e.g. sensitive_files (site-level) and a nuclei .env template (path /.env) from
+# both surviving as separate "secret" findings.
+_SITE_LEVEL_TYPES = {"secret", "headers", "cors", "outdated"}
+
+
 def _dedupe_findings(findings: list) -> list:
     """Collapse the same vuln TYPE on the same endpoint across sources,
     preferring tool-confirmed (sweep/logic), then higher severity."""
     best: dict = {}
     for f in findings:
         f["name"] = _clean_name(f.get("name", ""))
-        key = (_vuln_type(f), _finding_path(f))
+        vt = _vuln_type(f)
+        key = (vt, "" if vt in _SITE_LEVEL_TYPES else _finding_path(f))
         cur = best.get(key)
         if cur is None:
             best[key] = f

@@ -71,12 +71,28 @@ def test_dedup_keeps_distinct_types_on_same_path():
     assert len(out) == 2
 
 
-def test_dedup_two_env_templates_collapse():
-    """Several .env detectors on the same path -> one finding (low-noise)."""
+def test_dedup_env_templates_collapse_across_paths():
+    """The same .env exposure found at different paths (sensitive_files reports
+    it site-level, nuclei reports it at /.env) must collapse to one finding."""
     findings = [
-        {"name": "Exposed sensitive file", "url": "https://x.com/.env", "source": "sweep", "severity": "high"},
+        {"name": "Exposed sensitive file", "url": "https://x.com", "source": "sweep", "severity": "high"},
         {"name": "Codeigniter - .env File Discovery", "url": "https://x.com/.env",
          "vtype": "nuclei:codeigniter-env", "source": "sweep", "severity": "high"},
+        {"name": "Laravel - Sensitive Information Disclosure", "url": "https://x.com/.env",
+         "vtype": "nuclei:laravel-env", "source": "sweep", "severity": "high"},
     ]
     out = _dedupe_findings(findings)
     assert len(out) == 1
+
+
+def test_dedup_distinct_exposures_stay_separate():
+    """Different exposed files on one host (config.json vs .git) are NOT secrets
+    by keyword, so their distinct nuclei ids keep them as separate findings."""
+    findings = [
+        {"name": "Exposed JSON Configuration Files", "url": "https://x.com/config.json",
+         "vtype": "nuclei:config-json-exposure-fuzz", "source": "sweep", "severity": "critical"},
+        {"name": "Git Configuration - Detect", "url": "https://x.com/.git/config",
+         "vtype": "nuclei:git-config", "source": "sweep", "severity": "medium"},
+    ]
+    out = _dedupe_findings(findings)
+    assert len(out) == 2
