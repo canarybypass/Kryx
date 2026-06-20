@@ -21,15 +21,15 @@ recon → crawl (JS-aware) → sweep (every detector on every endpoint) → busi
 ```
 
 - **Tool-confirmed classes:** SQLi · XSS (reflected/stored/DOM) · command injection (RCE) · SSTI · path-traversal/LFI · IDOR/BOLA · SSRF (out-of-band) · open redirect · CORS · exposed secrets/configs · **JSON-body API injection** · known CVEs & exposures (nuclei).
-- **Business-logic flaws** scanners can't find: negative price/quantity, price & role tampering, broken object-level access — confirmed by the server's own response.
+- **Business-logic flaws** scanners can't find: negative price/quantity, price & role tampering, broken object-level access - confirmed by the server's own response.
 - **Visible adversarial debate:** an attacker argues a finding is real, a defender attacks it, a judge rules — before it reaches the report.
 - Every finding ships a **proof-of-concept + a ready-to-apply fix**.
 
-### 🔬 White-box — source code
+### 🔬 White-box - source code
 Point it at a repo or path: taint analysis by reasoning, an adversarial validation pass to kill false positives, and ready-to-apply fix code.
 
 ### 🤖 Autonomous mode
-Discovers authorized targets (bug-bounty scopes, OSS repos) and audits them — behind a hard **authorization gate** that refuses any host it isn't allowed to test.
+Discovers authorized targets (bug-bounty scopes, OSS repos) and audits them - behind a hard **authorization gate** that refuses any host it isn't allowed to test.
 
 ---
 
