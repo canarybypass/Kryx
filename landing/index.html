@@ -102,6 +102,20 @@
   .row p{color:var(--muted);font-weight:300;font-size:16px;margin-top:14px;max-width:60ch}
   .row:hover h3{color:var(--a1);transition:color .3s}
 
+  /* ── hero stat strip ── */
+  .stats{display:flex;gap:46px;margin-top:56px;flex-wrap:wrap}
+  .stats>div{display:flex;flex-direction:column;gap:5px}
+  .stats b{font-family:var(--serif);font-style:italic;font-weight:400;font-size:clamp(26px,3vw,38px);color:var(--a1);line-height:1}
+  .stats span{font-size:13px;color:var(--muted);letter-spacing:.01em}
+
+  /* ── arsenal (under the hood) ── */
+  .arsenal{padding:9vh 0;border-top:1px solid rgba(255,255,255,.08)}
+  .arsenal .lbl{font-size:12px;letter-spacing:.28em;text-transform:uppercase;color:var(--muted);margin-bottom:30px}
+  .tools{display:flex;flex-wrap:wrap;gap:18px 44px;align-items:baseline}
+  .tools span{font-size:clamp(18px,2.3vw,28px);color:#6e5f58;font-weight:500;letter-spacing:-.01em;transition:color .35s}
+  .tools span:hover{color:var(--text)}
+  .tools span em{font-family:var(--serif);font-style:italic;color:var(--a1)}
+
   /* ── proof ── */
   .proof{padding:18vh 0;text-align:center}
   .proof .kick{font-size:13px;letter-spacing:.28em;text-transform:uppercase;color:var(--muted);margin-bottom:34px}
@@ -164,6 +178,11 @@
       <a class="cta" href="#contact" data-en="Request a scan →" data-ru="Запросить скан →">Request a scan →</a>
       <a class="ghost" href="#what" data-en="See how it works" data-ru="Как это работает">See how it works</a>
     </div>
+    <div class="stats rv">
+      <div><b data-en="minutes" data-ru="минуты">minutes</b><span data-en="per scan — not days" data-ru="на скан — не дни">per scan — not days</span></div>
+      <div><b>0</b><span data-en="false positives" data-ru="ложных срабатываний">false positives</span></div>
+      <div><b data-en="proof + fix" data-ru="пруф + фикс">proof + fix</b><span data-en="on every finding" data-ru="на каждой находке">on every finding</span></div>
+    </div>
   </div>
   <div class="scrollcue"><span></span><div data-en="scroll" data-ru="вниз">scroll</div></div>
 </section>
@@ -194,6 +213,14 @@
   <div class="row rv"><div class="num">04</div><div>
     <h3 data-en="It argues every finding out loud" data-ru="Проговаривает каждую находку вслух">It argues every finding out loud</h3>
     <p data-en="An attacker argues it's real, a defender attacks it, a judge rules — before it reaches your report. You see the reasoning, not a black box." data-ru="Атакующий доказывает, защитник опровергает, судья решает — до того, как находка попадёт в отчёт. Ты видишь рассуждение, а не чёрный ящик.">An attacker argues it's real, a defender attacks it, a judge rules — before it reaches your report. You see the reasoning, not a black box.</p></div></div>
+</div></section>
+
+<!-- ARSENAL -->
+<section class="arsenal"><div class="wrap">
+  <div class="lbl rv" data-en="Under the hood" data-ru="Под капотом">Under the hood</div>
+  <div class="tools rv">
+    <span>nuclei</span><span>sqlmap</span><span>Playwright</span><span>OWASP&nbsp;Top&nbsp;10</span><span>out-of-band&nbsp;SSRF</span><span>CVE&nbsp;intel</span><span><em>proof-by-execution</em></span>
+  </div>
 </div></section>
 
 <!-- PROOF -->
