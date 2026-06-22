@@ -67,9 +67,16 @@ def _type_enum(finding: dict):
 
 async def run_pipeline(target: str, target_type: str = "repo",
                        scan_id: int | None = None, db_session=None,
-                       progress_cb=None) -> PipelineResult:
+                       progress_cb=None, model: str | None = None) -> PipelineResult:
     """Dispatch a scan to the real engine for its target type, persist to the
-    DB (when scan_id/db_session are given), and return a PipelineResult."""
+    DB (when scan_id/db_session are given), and return a PipelineResult.
+
+    `model` pins the LLM for this scan (plan-tier gating) — async-safe, scoped
+    to this task only."""
+    if model:
+        from utils.llm import set_model_override
+        set_model_override(model)
+
     target_type = (target_type or "repo").lower()
 
     if target_type in ("web", "url", "http", "https", "live"):

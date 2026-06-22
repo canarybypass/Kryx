@@ -70,43 +70,59 @@ async def create_scan_v2(req: ScanRequestV2, user: CurrentUser, db: DB):
     Use WebSocket /v2/scans/{id}/live for progress.
     """
     from db import Scan, ScanStatus
-    
-    # Check org scan limit
+    from sqlalchemy import select, func
+    import quota
+    import ownership
+
     org = user.organization
-    if org.monthly_scans_used >= org.monthly_scan_limit:
-        raise HTTPException(403, "Monthly scan limit reached")
-    
-    # Create scan record
+    tier = org.subscription_tier
+
+    # Budget gate: tier monthly + concurrency limits.
+    active = await db.scalar(
+        select(func.count()).select_from(Scan).where(
+            Scan.organization_id == org.id, Scan.status == ScanStatus.RUNNING))
+    ok, reason = quota.can_scan(tier, org.monthly_scans_used, active or 0)
+    if not ok:
+        raise HTTPException(403, reason)
+
+    # Legal gate: a web target must be ownership-verified by this org first.
+    if req.target_type in ("web", "url", "http", "https"):
+        verified, why = await ownership.verify_domain(org.id, req.target)
+        if not verified:
+            raise HTTPException(403, {
+                "error": "domain ownership not verified",
+                "detail": why,
+                "instructions": ownership.instructions(org.id, req.target),
+            })
+
     scan = Scan(
         organization_id=org.id,
         user_id=user.id,
         target=req.target,
         target_type=req.target_type,
-        status=ScanStatus.QUEUED
+        status=ScanStatus.QUEUED,
     )
     db.add(scan)
-    
-    # Increment usage
     org.monthly_scans_used += 1
-    
     await db.commit()
     await db.refresh(scan)
-    
-    # Start pipeline in background
+
+    # Pin the LLM model to the plan tier (cheap for low tiers, Opus for paid).
+    model = quota.model_for(tier)
     import asyncio
-    asyncio.create_task(_run_scan_v2(scan.id, req.target, req.target_type))
-    
+    asyncio.create_task(_run_scan_v2(scan.id, req.target, req.target_type, model))
+
     return {
         "scan_id": scan.id,
         "status": "queued",
-        "message": "Scan started. Connect to WebSocket for live updates."
+        "message": "Scan started. Connect to WebSocket for live updates.",
     }
 
 
-async def _run_scan_v2(scan_id: int, target: str, target_type: str):
+async def _run_scan_v2(scan_id: int, target: str, target_type: str, model: str | None = None):
     """Background task to run scan pipeline"""
     from core.harness.supervisor_v2 import run_pipeline
-    
+
     async with SessionLocal() as session:
         try:
             # Update to running
@@ -114,9 +130,9 @@ async def _run_scan_v2(scan_id: int, target: str, target_type: str):
             scan.status = ScanStatus.RUNNING
             scan.started_at = datetime.utcnow()
             await session.commit()
-            
+
             # Run pipeline
-            result = await run_pipeline(target, target_type, scan_id, session)
+            result = await run_pipeline(target, target_type, scan_id, session, model=model)
             
             print(f"[Scan {scan_id}] Completed: {len(result.static_findings)} findings")
         

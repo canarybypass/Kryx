@@ -3,10 +3,21 @@ Kryx LLM Client — unified interface to multiple LLM providers
 """
 import os
 import asyncio
+from contextvars import ContextVar
 import httpx
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# Per-scan model override (async-safe — each scan task has its own context).
+# The SaaS layer sets this to gate the model by plan tier (cheap DeepSeek for
+# free/low tiers, Opus for paid) so one user can't burn the API budget.
+_model_override: ContextVar[str | None] = ContextVar("kryx_model_override", default=None)
+
+
+def set_model_override(model: str | None):
+    """Pin the LLM model for the current async context. Returns a reset token."""
+    return _model_override.set(model)
 
 
 class LLMClient:
@@ -180,8 +191,12 @@ _llm: LLMClient | None = None
 
 def get_llm(model: str | None = None) -> LLMClient:
     global _llm
-    if _llm is None or model:
-        _llm = LLMClient(model)
+    effective = model or _model_override.get()
+    if effective:
+        # per-context model (tier gating) — don't cache across tiers/scans
+        return LLMClient(effective)
+    if _llm is None:
+        _llm = LLMClient(None)
     return _llm
 
 
