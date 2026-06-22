@@ -11,15 +11,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-# Go-based tools (nuclei, ffuf, subfinder)
+# Go-based tools (nuclei, subfinder, gitleaks)
 RUN curl -sL https://go.dev/dl/go1.22.4.linux-amd64.tar.gz | tar -C /usr/local -xz
 ENV PATH="/usr/local/go/bin:$PATH"
 RUN go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest \
-    && go install github.com/ffuf/ffuf/v2@latest \
     && go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest \
+    && go install github.com/zricethezav/gitleaks/v8@latest \
     && mv ~/go/bin/* /usr/local/bin/
 
 WORKDIR /app
+
+# semgrep is installed isolated (pipx) — pulling it into the app env upgrades
+# starlette and breaks fastapi. ~/.local/bin is where pipx exposes the binary.
+ENV PATH="/root/.local/bin:$PATH"
+RUN pip install --no-cache-dir pipx && pipx install semgrep
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt \
