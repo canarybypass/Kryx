@@ -13,32 +13,37 @@ from core.harness.memory import AgentMemory
 ATTACK_CLASSES = [
     {
         "name": "injection",
-        "description": "SQL injection, command injection, SSTI, LDAP injection, XXE",
-        "tools": ["sqlmap_check", "cmdi_probe", "ssti_probe", "http_probe", "browser_probe"],
+        "description": "SQLi, command injection, SSTI, NoSQL injection, XXE, insecure deserialization, prototype pollution, file upload, CRLF, parameter pollution, resource-exhaustion / unbounded-input on write endpoints (non-destructive)",
+        "tools": ["sqlmap_check", "cmdi_probe", "ssti_probe", "nosql_probe", "xxe_probe",
+                  "ldap_probe", "xpath_probe", "ssi_probe",
+                  "deserialization_probe", "prototype_pollution_probe", "upload_probe",
+                  "crlf_probe", "hpp_probe", "resource_probe", "param_miner", "http_probe", "browser_probe"],
         "priority": "critical",
     },
     {
         "name": "xss_csrf",
-        "description": "Reflected/stored/DOM XSS, CSRF vulnerabilities",
-        "tools": ["xss_probe", "dom_xss_probe", "http_probe", "browser_probe"],
+        "description": "Reflected/stored/DOM XSS, CSRF, clickjacking, CRLF/header injection",
+        "tools": ["xss_probe", "dom_xss_probe", "csrf_probe", "headers_probe", "crlf_probe", "http_probe", "browser_probe"],
         "priority": "high",
     },
     {
         "name": "auth_session",
-        "description": "Broken access control: IDOR/BOLA, authentication bypass, session fixation, JWT issues, privilege escalation",
-        "tools": ["idor_probe", "http_probe", "dir_bruteforce", "browser_probe"],
+        "description": "Broken access control: IDOR/BOLA, auth bypass, JWT weaknesses (alg=none/weak secret), session fixation, host-header reset poisoning, NoSQL auth bypass, privilege escalation",
+        "tools": ["idor_probe", "jwt_probe", "host_header_probe", "nosql_probe", "http_probe", "dir_bruteforce", "browser_probe"],
         "priority": "critical",
     },
     {
         "name": "config_exposure",
-        "description": "Exposed config files, .git, .env, backup files, debug endpoints",
-        "tools": ["sensitive_files", "dir_bruteforce", "http_probe", "nuclei_scan"],
+        "description": "Exposed config files, .git, .env, backup files, debug endpoints, weak security headers",
+        "tools": ["sensitive_files", "headers_probe", "open_mgmt_probe", "dir_bruteforce", "http_probe", "nuclei_scan"],
         "priority": "high",
     },
     {
         "name": "cors_ssrf",
-        "description": "CORS misconfig, SSRF, open redirect, server-side request issues",
-        "tools": ["ssrf_probe", "cors_probe", "open_redirect_probe", "http_probe", "nuclei_scan", "browser_probe"],
+        "description": "CORS misconfig, SSRF, open redirect, web cache poisoning/deception, host-header routing",
+        "tools": ["ssrf_probe", "cloud_metadata_probe", "cors_probe", "open_redirect_probe",
+                  "cache_probe", "host_header_probe", "websocket_probe", "smuggling_probe",
+                  "http_probe", "nuclei_scan", "browser_probe"],
         "priority": "high",
     },
     {
@@ -49,8 +54,8 @@ ATTACK_CLASSES = [
     },
     {
         "name": "info_disclosure",
-        "description": "Information leakage, path traversal/LFI, verbose errors, exposed APIs, swagger/graphql",
-        "tools": ["sensitive_files", "lfi_probe", "dir_bruteforce", "http_probe", "whatweb", "browser_probe"],
+        "description": "Information leakage, path traversal/LFI, verbose errors, exposed APIs, GraphQL introspection, hidden parameters",
+        "tools": ["sensitive_files", "lfi_probe", "graphql_probe", "open_mgmt_probe", "param_miner", "dir_bruteforce", "http_probe", "whatweb", "browser_probe"],
         "priority": "medium",
     },
     {
@@ -65,11 +70,44 @@ ATTACK_CLASSES = [
 class HunterStage:
     """Stage 2: параллельный поиск уязвимостей."""
 
-    def __init__(self, target: str, recon: dict, max_hunters: int, emit_cb=None):
+    def __init__(self, target: str, recon: dict, max_hunters: int, emit_cb=None,
+                 surface: dict | None = None):
         self.target = target
         self.recon = recon
         self.max_hunters = max_hunters
         self.emit = emit_cb
+        self.surface = surface or {}
+
+    def _surface_text(self) -> str:
+        """Concrete attack surface for the hunters: every crawled endpoint with
+        its parameters/fields, as ready-to-test URLs. Without this the agents
+        guess URLs and never feed sqlmap the injectable param (e.g. ?cat=1)."""
+        eps = self.surface.get("endpoints", [])
+        if not eps:
+            return ""
+        get_params, body_eps, plain = [], [], []
+        for e in eps:
+            url = e.get("url", "")
+            params = e.get("params", []) or []
+            method = (e.get("method") or "GET").upper()
+            if e.get("body") or (method != "GET" and params):
+                body_eps.append(f"  - {method} {url}  | JSON-поля: {', '.join(params)}")
+            elif params:
+                test_url = url if "?" in url else url + "?" + "&".join(f"{p}=1" for p in params)
+                get_params.append(f"  - {test_url}  | параметры: {', '.join(params)}")
+            else:
+                plain.append(f"  - {url}")
+        out = ["КАРТА АТАКИ — реальные эндпоинты с краулинга. Тестируй ИХ конкретно, НЕ угадывай URL."]
+        if get_params:
+            out.append("Параметризованные GET (ПРИОРИТЕТ для SQLi/XSS/LFI — передавай в инструмент ПОЛНЫЙ URL с параметрами):")
+            out += get_params[:40]
+        if body_eps:
+            out.append("API с телом запроса (тестируй каждое поле на инъекции):")
+            out += body_eps[:20]
+        if plain:
+            out.append("Прочие пути (перебор каталогов / конфиги):")
+            out += plain[:30]
+        return "\n".join(out)
 
     async def run(self) -> list:
         # Select relevant attack classes based on recon
@@ -111,11 +149,13 @@ class HunterStage:
             if t["name"] in attack_class["tools"]
         )
 
+        surface_text = self._surface_text()
         base_context = (
             f"Target: {self.target}\n"
             f"Attack class: {attack_class['name']} — {attack_class['description']}\n"
             f"Available tools: {', '.join(attack_class['tools'])}\n\n"
-            f"Recon data:\n{json.dumps(self.recon, indent=2, ensure_ascii=False)[:2000]}"
+            f"{surface_text}\n\n"
+            f"Recon data:\n{json.dumps(self.recon, indent=2, ensure_ascii=False)[:1500]}"
         )
 
         max_steps = 8  # увеличили с 6 до 8

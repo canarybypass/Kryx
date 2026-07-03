@@ -8,6 +8,7 @@ import shutil
 from pathlib import Path
 
 from core.harness.auth_context import client as auth_client, sqlmap_args as _sqlmap_auth_args, auth_cookies, auth_headers
+from core.tools import probes_ext
 
 SANDBOX_DIR = Path(os.getenv("KRYX_SANDBOX_DIR") or os.getenv("HEXOR_SANDBOX_DIR", "/tmp/kryx-sandbox"))
 
@@ -184,6 +185,29 @@ async def run_tool(name: str, params: dict) -> dict:
         "msf_search": _msf_search,
         "msf_run": _msf_run,
         "browser_probe": _browser_probe,
+        # ── extended probes (probes_ext) ──
+        "headers_probe": probes_ext.headers_probe,
+        "crlf_probe": probes_ext.crlf_probe,
+        "host_header_probe": probes_ext.host_header_probe,
+        "hpp_probe": probes_ext.hpp_probe,
+        "param_miner": probes_ext.param_miner,
+        "cache_probe": probes_ext.cache_probe,
+        "xxe_probe": probes_ext.xxe_probe,
+        "nosql_probe": probes_ext.nosql_probe,
+        "jwt_probe": probes_ext.jwt_probe,
+        "graphql_probe": probes_ext.graphql_probe,
+        "deserialization_probe": probes_ext.deserialization_probe,
+        "prototype_pollution_probe": probes_ext.prototype_pollution_probe,
+        "upload_probe": probes_ext.upload_probe,
+        "cloud_metadata_probe": probes_ext.cloud_metadata_probe,
+        "ldap_probe": probes_ext.ldap_probe,
+        "xpath_probe": probes_ext.xpath_probe,
+        "ssi_probe": probes_ext.ssi_probe,
+        "csrf_probe": probes_ext.csrf_probe,
+        "websocket_probe": probes_ext.websocket_probe,
+        "smuggling_probe": probes_ext.smuggling_probe,
+        "open_mgmt_probe": probes_ext.open_mgmt_probe,
+        "resource_probe": probes_ext.resource_probe,
     }
 
     handler = handlers.get(name)
@@ -1663,3 +1687,74 @@ async def _browser_probe(url: str, actions: list | None = None) -> dict:
         await browser.close()
 
     return results
+
+
+# ── Extended probe schemas (probes_ext) — widen coverage ───────────────────
+TOOLS_SCHEMA.extend([
+    {"name": "headers_probe",
+     "description": "Audit response security headers + cookie flags: clickjacking (no X-Frame-Options/CSP frame-ancestors), missing CSP/HSTS, MIME sniffing, weak cookie flags (HttpOnly/Secure/SameSite). Run on any page.",
+     "parameters": {"url": "string (URL)"}},
+    {"name": "crlf_probe",
+     "description": "Test CRLF / HTTP response-header injection: injects %0d%0a into query params and confirms an injected header (or Set-Cookie) appears in the response. Use on URLs with parameters.",
+     "parameters": {"url": "string (URL with query parameters)"}},
+    {"name": "host_header_probe",
+     "description": "Test Host-header injection (password-reset poisoning, routing abuse): sends spoofed Host/X-Forwarded-Host and checks reflection in the body or redirect Location.",
+     "parameters": {"url": "string (URL)"}},
+    {"name": "hpp_probe",
+     "description": "Test HTTP Parameter Pollution: duplicates a parameter and reports when the response diverges from the single-value baseline (filter/logic bypass surface). Use on URLs with parameters.",
+     "parameters": {"url": "string (URL with query parameters)"}},
+    {"name": "param_miner",
+     "description": "Discover hidden/undocumented parameters from a common wordlist; flags params that change the response vs baseline (new inputs to attack with other probes).",
+     "parameters": {"url": "string (URL)"}},
+    {"name": "cache_probe",
+     "description": "Test web cache poisoning (unkeyed X-Forwarded-Host reflected into a cacheable response) and cache deception (static-suffix path serving dynamic content).",
+     "parameters": {"url": "string (URL)"}},
+    {"name": "xxe_probe",
+     "description": "Test XXE (XML External Entity): POSTs an XML body with an external entity reading a local file; confirms RCE-tier file read if the file content reflects back. Use on endpoints that accept XML.",
+     "parameters": {"url": "string (URL accepting XML/POST)"}},
+    {"name": "nosql_probe",
+     "description": "Test NoSQL injection (MongoDB operators like [$ne]/[$gt] in params and JSON login bodies): detects auth bypass, query tampering, NoSQL error leakage.",
+     "parameters": {"url": "string (URL, with params or a login endpoint)"}},
+    {"name": "jwt_probe",
+     "description": "Analyse a JWT for alg=none acceptance, weak/guessable HMAC secret (dictionary crack → full forgery), and claim disclosure. Auto-finds a token in the page/cookies or pass token=.",
+     "parameters": {"url": "string (URL)", "token": "string (optional JWT to analyse)"}},
+    {"name": "graphql_probe",
+     "description": "Discover a GraphQL endpoint and test if introspection is enabled (full schema disclosure → complete attack map). Tries /graphql, /api/graphql, etc.",
+     "parameters": {"url": "string (URL)"}},
+    {"name": "deserialization_probe",
+     "description": "Detect serialized objects (Java rO0AB, PHP O:, Python pickle, .NET __VIEWSTATE, Ruby Marshal) in cookies/params/response — strong insecure-deserialization (RCE) indicator.",
+     "parameters": {"url": "string (URL)"}},
+    {"name": "prototype_pollution_probe",
+     "description": "Test prototype pollution via __proto__ in query string and JSON body; flags reflection/500 (can escalate to RCE/auth-bypass in JS/Node apps).",
+     "parameters": {"url": "string (URL)"}},
+    {"name": "upload_probe",
+     "description": "Test insecure file upload: posts a benign double-extension file (kryx.php.jpg) and reports if accepted (weak validation → webshell). Use on upload endpoints.",
+     "parameters": {"url": "string (upload endpoint URL)"}},
+    {"name": "cloud_metadata_probe",
+     "description": "Pivot an SSRF-style param to AWS/GCP/Azure metadata (169.254.169.254) and detect leaked instance credentials. Critical: cloud account takeover. Use on URLs with url/redirect/fetch-style params.",
+     "parameters": {"url": "string (URL with an SSRF-prone param)"}},
+    {"name": "ldap_probe",
+     "description": "Test LDAP injection: wildcard/filter-breaking payloads in params; detects LDAP errors or auth-bypass response divergence.",
+     "parameters": {"url": "string (URL with query parameters)"}},
+    {"name": "xpath_probe",
+     "description": "Test XPath injection: boolean/filter-breaking payloads; detects XPath parser errors or bypass. Use on params that query XML data.",
+     "parameters": {"url": "string (URL with query parameters)"}},
+    {"name": "ssi_probe",
+     "description": "Test Server-Side Includes injection: injects #exec/#echo directives; confirms RCE if the directive executes. Use on params reflected into pages.",
+     "parameters": {"url": "string (URL with query parameters)"}},
+    {"name": "csrf_probe",
+     "description": "Detect CSRF surface: POST forms missing an anti-CSRF token and cookies without SameSite.",
+     "parameters": {"url": "string (URL)"}},
+    {"name": "websocket_probe",
+     "description": "Discover WebSocket endpoints in the page and test Origin validation (Cross-Site WebSocket Hijacking — handshake accepted from a foreign Origin).",
+     "parameters": {"url": "string (URL)"}},
+    {"name": "smuggling_probe",
+     "description": "Conservative HTTP request smuggling (CL.TE timing) check; flags POTENTIAL desync for manual confirmation. Use on the site root.",
+     "parameters": {"url": "string (URL)"}},
+    {"name": "open_mgmt_probe",
+     "description": "Probe exposed admin/debug/management panels: Spring actuator (env/heapdump), Tomcat manager, swagger/openapi, phpMyAdmin, Jenkins, Grafana, Kibana, .git, jolokia.",
+     "parameters": {"url": "string (URL)"}},
+    {"name": "resource_probe",
+     "description": "NON-DESTRUCTIVE resource-exhaustion / unbounded-input detector for WRITE endpoints (POST/PUT). Sends a few bounded, escalating payloads (≤512KB, ≤4 reqs, early-stop — never floods) and flags a missing size limit (no 413), latency degradation, or state-change-despite-error. Use on write endpoints. Aggressive sizes need explicit consent env; findings are 'potential'.",
+     "parameters": {"url": "string (write endpoint URL)", "method": "string (optional: POST|PUT, default POST)"}},
+])

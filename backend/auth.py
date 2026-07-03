@@ -7,11 +7,12 @@ from typing import Annotated
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+import bcrypt
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from db import User, get_db
 
@@ -43,7 +44,6 @@ SECRET_KEY = _load_secret_key()
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))  # 24h
 
-pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 bearer = HTTPBearer()
 
 
@@ -76,11 +76,17 @@ class UserOut(BaseModel):
 # ── Helpers ────────────────────────────────────────────────
 
 def hash_password(password: str) -> str:
-    return pwd_ctx.hash(password)
+    # bcrypt only uses the first 72 bytes; truncate explicitly (bcrypt 4.x
+    # raises instead of truncating). Direct bcrypt avoids the passlib<->bcrypt
+    # version-detection breakage in passlib 1.7.4.
+    return bcrypt.hashpw(password.encode("utf-8")[:72], bcrypt.gensalt()).decode("utf-8")
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_ctx.verify(plain, hashed)
+    try:
+        return bcrypt.checkpw(plain.encode("utf-8")[:72], hashed.encode("utf-8"))
+    except (ValueError, TypeError):
+        return False
 
 
 def create_token(user_id: int) -> str:
@@ -105,7 +111,10 @@ async def get_current_user(
     except (JWTError, KeyError, ValueError):
         raise exc
 
-    user = await db.get(User, user_id)
+    # Eager-load the organization — endpoints read user.organization (tier,
+    # quota, billing) and a lazy load outside the async session raises
+    # MissingGreenlet.
+    user = await db.get(User, user_id, options=[selectinload(User.organization)])
     if not user:
         raise exc
     return user
@@ -124,7 +133,26 @@ async def register(req: RegisterRequest, db: AsyncSession) -> TokenResponse:
     if len(req.password) < 8:
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
 
-    user = User(email=req.email, hashed_password=hash_password(req.password))
+    # Every user belongs to an organization (org-scoped scans/quota/billing).
+    # A fresh signup gets its own org on a 14-day Starter trial, and becomes
+    # its owner. organization_id is NOT NULL, so this must happen at signup.
+    from db import Organization, SubscriptionTier
+    org = Organization(
+        name=f"{req.email.split('@')[0]}'s workspace",
+        subscription_tier=SubscriptionTier.STARTER,
+        subscription_status="trialing",
+        trial_ends_at=datetime.utcnow() + timedelta(days=14),
+        monthly_scan_limit=20,
+    )
+    db.add(org)
+    await db.flush()  # assign org.id before linking the user
+
+    user = User(
+        email=req.email,
+        hashed_password=hash_password(req.password),
+        organization_id=org.id,
+        role="owner",
+    )
     db.add(user)
     await db.commit()
     await db.refresh(user)

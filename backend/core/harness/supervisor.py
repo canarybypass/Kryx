@@ -179,7 +179,8 @@ class Supervisor:
 
         # Stage 4: Parallel LLM hunting (reasoning on top of the sweep)
         await self._emit("status", "hunting")
-        hunter = HunterStage(self.target, self.result.recon, self.max_hunters, self._emit)
+        hunter = HunterStage(self.target, self.result.recon, self.max_hunters,
+                             self._emit, surface=surface)
         hunter_findings = await hunter.run()
 
         # Merge deterministic + business-logic + LLM findings, then collapse

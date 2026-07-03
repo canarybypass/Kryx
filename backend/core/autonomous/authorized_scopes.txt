@@ -3,9 +3,18 @@
 # Add ONLY: your own assets, or targets that explicitly permit testing.
 # (Localhost / private IPs are always allowed.)
 
-# Vendor-published deliberately-vulnerable training targets (authorized for testing):
+# Vendor-published delibera\\
+\tely-vulnerable training targets (authorized for testing):
 ginandjuice.shop
 *.ginandjuice.shop
 demo.testfire.net
 brokencrystals.com
-juice-shop.herokuapp.com
+прод
+# Acunetix public test sites (explicitly published for scanning web vuln scanners):
+testphp.vulnweb.com
+testasp.vulnweb.com
+testaspnet.vulnweb.com
+testhtml5.vulnweb.com
+rest.vulnweb.com
+# Zero Bank — vulnerable banking demo:
+zero.webappsecurity.com

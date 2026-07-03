@@ -167,6 +167,7 @@ async def get_scan_v2(scan_id: int, user: CurrentUser, db: DB):
         "target_type": scan.target_type,
         "status": scan.status,
         "summary": scan.summary,
+        "report": scan.report,
         "stats": scan.stats,
         "vulnerabilities": [
             {
@@ -250,6 +251,107 @@ async def scan_live_v2(websocket: WebSocket, scan_id: int):
             pass
         finally:
             await websocket.close()
+
+
+@router.websocket("/v2/scans/stream")
+async def scan_stream_v2(websocket: WebSocket):
+    """Authenticated live scan stream — the browser terminal.
+
+    Client sends {token, target, target_type}. We enforce the same gates as
+    POST /v2/scans (quota + domain ownership), then run the real pipeline with a
+    progress callback that streams every stage/hunter-step/debate event straight
+    to the terminal, and persist the result.
+    """
+    from sqlalchemy import select, func
+    from sqlalchemy.orm import selectinload
+    from db import User, Scan, ScanStatus
+    from core.harness.supervisor_v2 import run_pipeline
+    import quota
+    import ownership
+
+    await websocket.accept()
+    try:
+        req = await websocket.receive_json()
+        token = req.get("token")
+        target = (req.get("target") or "").strip()
+        target_type = (req.get("target_type") or "web").lower()
+
+        async def emit(event, data):
+            try:
+                await websocket.send_json({"event": event, "data": data})
+            except Exception:
+                pass
+
+        user_id = _user_id_from_token(token)
+        if not user_id:
+            await emit("error", "Not authenticated — log in again.")
+            return
+        if not target:
+            await emit("error", "No target provided.")
+            return
+
+        async with SessionLocal() as db:
+            user = await db.get(User, user_id, options=[selectinload(User.organization)])
+            if not user:
+                await emit("error", "User not found.")
+                return
+            org = user.organization
+            tier = org.subscription_tier
+
+            active = await db.scalar(
+                select(func.count()).select_from(Scan).where(
+                    Scan.organization_id == org.id, Scan.status == ScanStatus.RUNNING))
+            ok, reason = quota.can_scan(tier, org.monthly_scans_used, active or 0)
+            if not ok:
+                await emit("error", reason)
+                return
+
+            if target_type in ("web", "url", "http", "https"):
+                verified, why = await ownership.verify_domain(org.id, target)
+                if not verified:
+                    await emit("verify_required", ownership.instructions(org.id, target))
+                    return
+
+            scan = Scan(organization_id=org.id, user_id=user_id, target=target,
+                        target_type=target_type, status=ScanStatus.RUNNING,
+                        started_at=datetime.utcnow())
+            db.add(scan)
+            org.monthly_scans_used += 1
+            await db.commit()
+            await db.refresh(scan)
+            scan_id = scan.id
+
+            await emit("scan_started", {"scan_id": scan_id, "target": target,
+                                        "model_tier": str(tier)})
+
+            model = quota.model_for(tier)
+            try:
+                await run_pipeline(target, target_type, scan_id, db,
+                                   progress_cb=lambda m: emit(m.get("event"), m.get("data")),
+                                   model=model)
+            except Exception as e:
+                scan = await db.get(Scan, scan_id)
+                if scan:
+                    scan.status = ScanStatus.FAILED
+                    scan.summary = f"Error: {e}"
+                    await db.commit()
+                await emit("error", f"Scan failed: {e}")
+                return
+
+            await emit("complete", {"scan_id": scan_id})
+
+    except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        try:
+            await websocket.send_json({"event": "error", "data": str(e)})
+        except Exception:
+            pass
+    finally:
+        try:
+            await websocket.close()
+        except Exception:
+            pass
 
 
 # ── Billing & Subscriptions ────────────────────────────────

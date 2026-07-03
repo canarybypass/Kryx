@@ -1,4 +1,7 @@
-FROM python:3.12-slim
+# Pinned to bookworm (Debian 12): playwright 1.49's `install --with-deps`
+# references font/lib package names that were renamed in trixie (Debian 13),
+# so the default `slim` (now trixie) fails on `ttf-ubuntu-font-family`.
+FROM python:3.12-slim-bookworm
 
 # Security tools
 RUN apt-get update && apt-get install -y --no-install-recommends \

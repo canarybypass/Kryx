@@ -51,17 +51,16 @@ class LLMClient:
         if not api_key:
             raise RuntimeError("OPENROUTER_API_KEY not set")
 
-        # Fallback models if primary fails. Configurable via env so the
-        # product can target paid models in prod while defaulting to free
-        # models that actually work pre-revenue.
+        # Fallback models if the primary fails. Default to DeepSeek — a cheap
+        # BUT COHERENT model — not the free junk models we used pre-revenue:
+        # those emit garbled multilingual text (e.g. "Крабжа сессий") that
+        # silently corrupted paid reports when the primary 402'd on low credit.
+        # Set OPENROUTER_FALLBACKS="" to disable fallback and fail loudly.
         env_fb = os.getenv("OPENROUTER_FALLBACKS")
-        if env_fb:
+        if env_fb is not None:
             extra = [m.strip() for m in env_fb.split(",") if m.strip()]
         else:
-            extra = [
-                "nvidia/nemotron-nano-9b-v2:free",
-                "google/gemma-4-31b-it:free",
-            ]
+            extra = ["deepseek/deepseek-chat-v3-0324"]
         fallbacks = [model] + [m for m in extra if m != model]
 
         last_err = "unknown"
@@ -75,6 +74,12 @@ class LLMClient:
                                 {"role": "system", "content": system},
                                 {"role": "user", "content": prompt},
                             ],
+                            # Cap output tokens. Without this OpenRouter reserves
+                            # the model's full context (e.g. 65k for Opus) and
+                            # rejects with 402 on a low balance — which then
+                            # silently fell back to junk models. A sane cap lets
+                            # the paid model actually run.
+                            "max_tokens": int(os.getenv("OPENROUTER_MAX_TOKENS", "8000")),
                         }
                         # Only request strict JSON mode when explicitly asked;
                         # many (esp. free) models reject response_format and
