@@ -65,6 +65,40 @@ Discovers authorized targets (bug-bounty scopes, OSS repos) and audits them, beh
 
 ---
 
+## Sample run
+
+```text
+$ python run_scan.py https://your-authorized-target
+
+[recon]   target -> 34.202.86.158  (Node.js · Express · React/Vite · k8s ingress)
+[crawl]   41 endpoints · 18 params · 6 forms
+[sweep]   nuclei: /config.json leaks API keys                       [CRITICAL]
+[hunt]    [injection]  cmdi /api/spawn?command= -> remote shell      [CRITICAL]
+[hunt]    [auth]       jwt alg=none accepted -> token forgery        [HIGH]
+[hunt]    [ssrf]       /api/file?url= -> 169.254.169.254 (AWS)       [CRITICAL]
+[debate]  attacker / defender / judge -> VALIDATED (reproduced x20)
+[chains]  open-redirect -> ssrf -> metadata -> cloud takeover
+[report]  6 findings · 2 chains · every one proven
+
+RESULT    critical 3 · high 1 · medium 2 · false-positives ~0
+```
+
+### A finding, in full
+
+Every finding ships proof and a fix, not a guess:
+
+```text
+[CRITICAL]  Command Injection · /api/spawn
+CVSS 9.8 · CWE-78 · confirmed by execution
+
+Proof:    GET /api/spawn?command=id
+          -> uid=1000(node) gid=1000(node)          # a shell came back
+Impact:   arbitrary commands as the app user; pivot to cloud creds via SSRF
+Fix:      never pass user input to a shell; use execFile with a fixed argv allow-list
+```
+
+---
+
 ## Repository layout
 
 ```
