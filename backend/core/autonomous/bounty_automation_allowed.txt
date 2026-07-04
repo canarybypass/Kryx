@@ -3,7 +3,7 @@
 #
 # Before adding a host: open the program's policy and verify automated
 # scanners/tools are allowed AND respect their rate limits / out-of-scope rules.
-# Being in scope is NOT permission to run automated tools — many programs ban it.
+# Being in scope is NOT permission to run automated tools - many programs ban it.
 #
 # Kryx refuses to actively scan a bounty host that is not listed here.
 #

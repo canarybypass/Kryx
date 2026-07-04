@@ -1,5 +1,5 @@
 """
-Kryx Supervisor — главный оркестратор многоагентной системы
+Kryx Supervisor - главный оркестратор многоагентной системы
 """
 import re
 from urllib.parse import urlparse
@@ -40,7 +40,7 @@ _VULN_TYPES = [
 
 
 def _vuln_type(f: dict) -> str:
-    # Detect from the finding's own type/name — NOT attack_class (a coarse
+    # Detect from the finding's own type/name - NOT attack_class (a coarse
     # hunter label like "cors_ssrf" wrongly matched headers findings as ssrf).
     # Keyword match runs FIRST so several nuclei templates that flag the same
     # known class (e.g. 3 .env templates + our sensitive_files hit) collapse
@@ -49,7 +49,7 @@ def _vuln_type(f: dict) -> str:
     for canon, kws in _VULN_TYPES:
         if any(k in blob for k in kws):
             return canon
-    # No known class matched — for a nuclei hit keep its unique template id so
+    # No known class matched - for a nuclei hit keep its unique template id so
     # distinct, novel CVEs on one host don't collapse into each other.
     vt = f.get("vtype", "")
     if vt.startswith("nuclei:"):
@@ -120,7 +120,7 @@ class Supervisor:
         self.result = ScanResult(target=target)
 
     async def run(self) -> dict:
-        # Authorization gate — never actively scan a non-authorized host.
+        # Authorization gate - never actively scan a non-authorized host.
         from core.autonomous.authz import is_authorized
         ok, reason = is_authorized(self.target)
         if not ok:
@@ -144,7 +144,7 @@ class Supervisor:
         await self._emit("status", "crawling")
         await self._emit("recon", self.result.recon)
 
-        # Stage 2: Crawl — map the full attack surface (endpoints, params, forms)
+        # Stage 2: Crawl - map the full attack surface (endpoints, params, forms)
         surface = await CrawlStage(self.target).run()
 
         # Memory: merge surface from past scans (never lose endpoints) and inject
@@ -165,13 +165,13 @@ class Supervisor:
         self.result.recon["crawled_endpoints"] = [e["url"] for e in surface.get("endpoints", [])]
         await self._emit("crawl", {"endpoints": len(surface.get("endpoints", []))})
 
-        # Stage 3: Deterministic sweep — run every relevant detector on every
+        # Stage 3: Deterministic sweep - run every relevant detector on every
         # discovered endpoint. Guarantees coverage independent of the LLM.
         await self._emit("status", "sweeping")
         sweep_findings = await SweepStage(surface, self._emit).run()
         await self._emit("sweep", {"findings": len(sweep_findings)})
 
-        # Stage 3b: Business-logic hunting — flaws scanners can't find
+        # Stage 3b: Business-logic hunting - flaws scanners can't find
         # (negative price, price/role tampering), confirmed by server response.
         await self._emit("status", "business_logic")
         logic_findings = await LogicHunter(surface, self._emit).run()
@@ -188,7 +188,7 @@ class Supervisor:
         self.result.findings = _dedupe_findings(sweep_findings + logic_findings + hunter_findings)
         await self._emit("findings_raw", self.result.findings)
 
-        # Stage 5: Adversarial debate (visible attacker vs defender) — verifies
+        # Stage 5: Adversarial debate (visible attacker vs defender) - verifies
         # LLM findings via a live multi-turn debate; tool-confirmed pass through.
         await self._emit("status", "debate")
         debate = DebateStage(self.target, self.result.findings, self._emit)

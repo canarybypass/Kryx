@@ -1,5 +1,5 @@
 """
-Kryx Scan Memory — cumulative per-target knowledge across scans.
+Kryx Scan Memory - cumulative per-target knowledge across scans.
 
 Each scan remembers a target's attack surface and findings. The next scan of
 the same target starts from the accumulated surface (never loses endpoints),

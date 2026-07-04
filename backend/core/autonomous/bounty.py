@@ -1,13 +1,13 @@
 """
-Kryx Bounty Track — active scanning of bug-bounty targets, safely.
+Kryx Bounty Track - active scanning of bug-bounty targets, safely.
 
 In-scope is NOT enough: many programs forbid automated scanners. So a bounty
 host is only scannable if YOU have confirmed (by reading the program's policy)
-that automated testing is allowed — recorded in bounty_automation_allowed.txt.
+that automated testing is allowed - recorded in bounty_automation_allowed.txt.
 The authz gate enforces this: in-scope + automation-allowed, or it's refused.
 
 Findings here are black-box and TOOL-CONFIRMED (proven by execution), which is
-what makes them defensible to submit — unlike reasoned white-box guesses.
+what makes them defensible to submit - unlike reasoned white-box guesses.
 """
 from pathlib import Path
 

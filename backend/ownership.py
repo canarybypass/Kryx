@@ -1,5 +1,5 @@
 """
-Domain ownership verification — the legal gate for self-serve scans.
+Domain ownership verification - the legal gate for self-serve scans.
 
 A user may only scan a domain they prove they control. Before any self-serve
 scan runs, the requesting org must verify the target via ONE of:
@@ -7,7 +7,7 @@ scan runs, the requesting org must verify the target via ONE of:
   - a file at https://<domain>/.well-known/kryx-verify.txt holding the token.
 
 The token is deterministic per (org, domain) and unforgeable without the
-server secret — but verification still requires the record to actually exist
+server secret - but verification still requires the record to actually exist
 on the domain, so a user can't claim a domain they don't control.
 """
 import hashlib
@@ -96,5 +96,5 @@ async def verify_domain(org_id: int, domain: str) -> tuple[bool, str]:
     if token in await _http_file(domain):
         return True, f"verified via {_WELL_KNOWN}"
 
-    return False, ("ownership not verified — publish the token via a DNS TXT "
+    return False, ("ownership not verified - publish the token via a DNS TXT "
                    f"record on {domain} or at https://{domain}{_WELL_KNOWN}")

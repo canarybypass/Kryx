@@ -2,13 +2,13 @@ import { useState, useEffect, useRef } from "react";
 import { getToken } from "../services/api";
 
 const STAGE_LABEL = {
-  recon: "RECON — mapping the target",
-  crawling: "CRAWL — discovering endpoints & params",
-  sweeping: "SWEEP — deterministic detectors",
-  business_logic: "LOGIC — business-logic abuse",
-  hunting: "HUNT — adversarial agents",
-  debate: "DEBATE — attacker vs defender",
-  chains: "CHAINS — building attack paths",
+  recon: "RECON - mapping the target",
+  crawling: "CRAWL - discovering endpoints & params",
+  sweeping: "SWEEP - deterministic detectors",
+  business_logic: "LOGIC - business-logic abuse",
+  hunting: "HUNT - adversarial agents",
+  debate: "DEBATE - attacker vs defender",
+  chains: "CHAINS - building attack paths",
   done: "DONE",
 };
 
@@ -45,7 +45,7 @@ export default function ScanTerminal({ target, targetType, onClose, onFinished }
       const { event, data } = msg;
       switch (event) {
         case "scan_started":
-          push(`▶ scan #${data.scan_id} started — model tier: ${data.model_tier}`, "info");
+          push(`▶ scan #${data.scan_id} started - model tier: ${data.model_tier}`, "info");
           break;
         case "status":
           push(`\n━━ ${STAGE_LABEL[data] || data} ━━`, "stage");
@@ -61,7 +61,7 @@ export default function ScanTerminal({ target, targetType, onClose, onFinished }
           break;
         case "hunter_step":
           push(
-            `  [${data.attack_class}] #${data.step} ${data.useful ? "★" : "·"} ${data.tool} — ${(data.thought || "").slice(0, 90)}`,
+            `  [${data.attack_class}] #${data.step} ${data.useful ? "★" : "·"} ${data.tool} - ${(data.thought || "").slice(0, 90)}`,
             data.useful ? "hit" : "dim"
           );
           break;
@@ -83,11 +83,11 @@ export default function ScanTerminal({ target, targetType, onClose, onFinished }
         case "verify_required":
           setVerify(data);
           setStatus("verify");
-          push(`✗ domain ownership not verified — see instructions below`, "err");
+          push(`✗ domain ownership not verified - see instructions below`, "err");
           break;
         case "complete":
           setStatus("done");
-          push(`\n✔ scan complete — open it in the list for the full report.`, "ok");
+          push(`\n✔ scan complete - open it in the list for the full report.`, "ok");
           if (onFinished) onFinished();
           break;
         case "error":
@@ -121,7 +121,7 @@ export default function ScanTerminal({ target, targetType, onClose, onFinished }
       <div style={s.panel} onClick={(e) => e.stopPropagation()}>
         <div style={s.head}>
           <span>
-            <span style={{ ...s.dot, background: DOT[status] || "#888" }} /> kryx — live scan{" "}
+            <span style={{ ...s.dot, background: DOT[status] || "#888" }} /> kryx - live scan{" "}
             <span style={{ color: "#666" }}>[{status}]</span>
           </span>
           <button style={s.close} onClick={onClose}>

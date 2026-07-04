@@ -1,8 +1,8 @@
 """
-Kryx Console — a thin personal web UI over the engine.
+Kryx Console - a thin personal web UI over the engine.
 
 Run scans from a browser (PC/phone), watch findings + fixes live. No DB, no
-heavy API — just a shared access key (so a random visitor to the tunnel URL
+heavy API - just a shared access key (so a random visitor to the tunnel URL
 can't use your machine to attack others). ONLY scan targets you're authorized
 to test.
 
@@ -22,7 +22,7 @@ from core.harness.supervisor import Supervisor
 ACCESS_KEY = (os.getenv("KRYX_WEB_KEY") or "").strip()
 if not ACCESS_KEY or ACCESS_KEY in ("changeme", "change-me") or len(ACCESS_KEY) < 6:
     raise RuntimeError(
-        "KRYX_WEB_KEY is unset or too weak — the console refuses to start without "
+        "KRYX_WEB_KEY is unset or too weak - the console refuses to start without "
         "a real access key (anyone reaching the URL could use your machine to scan).\n"
         "Set a strong one, e.g.:\n"
         "  KRYX_WEB_KEY=$(python -c 'import secrets; print(secrets.token_urlsafe(24))') "
@@ -124,7 +124,7 @@ pre{white-space:pre-wrap;word-break:break-word;background:#0c1118;border:1px sol
 .warn{color:#f59e0b;font-size:12px;margin-top:10px}
 </style></head><body><div class=wrap>
 <h1>⚡ KRYX</h1>
-<div class=sub>AI offensive security — find · prove · fix</div>
+<div class=sub>AI offensive security - find · prove · fix</div>
 <input id=key type=password placeholder="Access key">
 <input id=target placeholder="target (e.g. https://example.com)">
 <button id=go onclick=scan()>Запустить скан</button>

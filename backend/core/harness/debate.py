@@ -1,12 +1,12 @@
 """
-Kryx Adversarial Debate — visible attacker-vs-defender verification.
+Kryx Adversarial Debate - visible attacker-vs-defender verification.
 
 Replaces the single-pass validator with a live multi-turn debate: an attacker
 argues the finding is real, a defender argues it's a false positive, a judge
 rules. Each turn is emitted via the progress callback so the UI shows the
 verification happening in real time.
 
-Tool-confirmed findings (sweep/logic) skip the debate — they're already proven;
+Tool-confirmed findings (sweep/logic) skip the debate - they're already proven;
 only LLM-reasoned findings are debated. Cheap and principled: proven by tool OR
 proven in debate.
 """
@@ -34,7 +34,7 @@ class DebateStage:
     async def _handle(self, f: dict):
         # Tool-confirmed → no debate needed.
         if f.get("source") in ("sweep", "logic"):
-            await self._turn(f, "system", "✓ Подтверждено инструментом — дебаты не требуются.")
+            await self._turn(f, "system", "✓ Подтверждено инструментом - дебаты не требуются.")
             f["verified_by"] = "tool"
             return f
         async with self.sem:
@@ -59,7 +59,7 @@ class DebateStage:
             DEBATE_JUDGE_PROMPT,
             f"{ctx}\n\nАТАКУЮЩИЙ: {attack}\nЗАЩИТНИК: {defend}\nАТАКУЮЩИЙ (контр): {rebut}\n\nВердикт?")) or {}
         verdict = ruling.get("verdict", "rejected")
-        await self._turn(f, "judge", f"{verdict.upper()} — {ruling.get('reason', '')}")
+        await self._turn(f, "judge", f"{verdict.upper()} - {ruling.get('reason', '')}")
 
         if verdict == "confirmed":
             f["verified_by"] = "debate"

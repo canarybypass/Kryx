@@ -1,5 +1,5 @@
 """
-Kryx Reporter — генерация профессионального отчёта.
+Kryx Reporter - генерация профессионального отчёта.
 
 The report is grounded strictly in the scan data: the LLM is given the real
 tool-chain that actually ran, today's date, and the deduplicated findings, and
@@ -13,7 +13,7 @@ from utils.llm import get_llm
 from core.agents.prompts import REPORTER_PROMPT
 
 # The actual black-box web tool-chain every scan drives. The report's
-# "Методология" section must list these and ONLY these — never invent others.
+# "Методология" section must list these and ONLY these - never invent others.
 WEB_TOOLCHAIN = [
     "nmap (порты/сервисы)",
     "subfinder + crt.sh (поддомены, certificate transparency)",
@@ -90,18 +90,18 @@ class ReporterStage:
 
 Напиши полный профессиональный отчёт о пентесте на русском (markdown), строго
 по этим данным. В разделе «Методология» перечисли инструменты РОВНО из поля
-"tools_used" и ничего больше. Дату возьми из "date". Если находок нет —
+"tools_used" и ничего больше. Дату возьми из "date". Если находок нет -
 честно напиши, что подтверждённых уязвимостей не выявлено, и не выдумывай их."""
 
         report = await llm.ask(REPORTER_PROMPT, prompt, json_mode=False)
 
-        # Executive summary — also grounded strictly in the data.
+        # Executive summary - also grounded strictly in the data.
         summary_prompt = f"""Данные скана:
 
 {json.dumps({k: data[k] for k in ('target', 'vulnerabilities', 'attack_chains')}, ensure_ascii=False)[:2000]}
 
 Напиши executive summary в 2-3 предложениях на русском. Только по данным выше,
-без выдумок. Если уязвимостей нет — так и скажи."""
+без выдумок. Если уязвимостей нет - так и скажи."""
 
         summary = await llm.ask(
             "Ты пишешь executive summary отчёта о пентесте. 2-3 предложения на русском. "

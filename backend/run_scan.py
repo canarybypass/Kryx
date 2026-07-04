@@ -1,5 +1,5 @@
 """
-Kryx — standalone engine runner.
+Kryx - standalone engine runner.
 
 Runs the multi-agent Supervisor directly against a target, bypassing the
 FastAPI server and PostgreSQL. Used to smoke-test the engine end-to-end.
@@ -28,7 +28,7 @@ async def _progress(update: dict):
     elif event == "hunter_step":
         useful = "★" if data.get("useful") else "·"
         print(f"  [{data['attack_class']:16}] step {data['step']} {useful} "
-              f"{data['tool']:14} — {data.get('thought','')[:70]}")
+              f"{data['tool']:14} - {data.get('thought','')[:70]}")
     elif event == "recon":
         print(f"  recon: {json.dumps(data, ensure_ascii=False)[:300]}")
     elif event == "debate":
@@ -56,7 +56,7 @@ async def main():
         return
 
     target = sys.argv[1] if len(sys.argv) > 1 else "http://testphp.vulnweb.com"
-    print(f"Kryx engine — scanning: {target}  (hunters={HUNTERS}, model={os.getenv('KRYX_MODEL') or os.getenv('HEXOR_MODEL','default')})")
+    print(f"Kryx engine - scanning: {target}  (hunters={HUNTERS}, model={os.getenv('KRYX_MODEL') or os.getenv('HEXOR_MODEL','default')})")
 
     # Authenticated scan: KRYX_AUTH_COOKIE="session=abc" / KRYX_AUTH_HEADER="Authorization: Bearer x"
     auth = {}

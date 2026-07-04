@@ -1,6 +1,6 @@
 """
 The unified SaaS pipeline must dispatch to the REAL engine for each target
-type — Supervisor for live web targets, CodeAuditor for source/repos — instead
+type - Supervisor for live web targets, CodeAuditor for source/repos - instead
 of the old half-built static stub. These tests pin that routing without running
 a real scan (the engines are faked).
 """

@@ -1,11 +1,11 @@
 """
-Kryx Business-Logic Hunter — finds flaws scanners can't (negative price,
+Kryx Business-Logic Hunter - finds flaws scanners can't (negative price,
 price/role tampering, missing validation).
 
 Approach: deterministically send hypothesis mutations to each parameter
 (negative/zero/low/huge values, privilege values), pre-filter to mutations the
-server ACCEPTED (2xx + response changed), then let the LLM judge — using the
-real baseline-vs-mutated responses — whether the abuse actually worked. This
+server ACCEPTED (2xx + response changed), then let the LLM judge - using the
+real baseline-vs-mutated responses - whether the abuse actually worked. This
 keeps it grounded and low-noise: the LLM only confirms what's visible in the
 server's own response.
 """

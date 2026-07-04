@@ -6,7 +6,7 @@ from db import init_db
 
 app = FastAPI(title="Kryx API", version="0.4.0")
 
-# CORS — restrict to configured origins instead of a wildcard.
+# CORS - restrict to configured origins instead of a wildcard.
 # Set CORS_ORIGINS as a comma-separated list in prod (e.g. https://app.kryx.io).
 _origins_env = os.getenv("CORS_ORIGINS") or os.getenv("FRONTEND_URL") or "http://localhost:3000"
 ALLOWED_ORIGINS = [o.strip() for o in _origins_env.split(",") if o.strip()]

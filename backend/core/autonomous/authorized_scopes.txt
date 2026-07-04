@@ -1,4 +1,4 @@
-# Kryx authorized scopes — hosts the engine is ALLOWED to actively scan.
+# Kryx authorized scopes - hosts the engine is ALLOWED to actively scan.
 # One per line. Use *.example.com for wildcards. Lines starting with # are comments.
 # Add ONLY: your own assets, or targets that explicitly permit testing.
 # (Localhost / private IPs are always allowed.)
@@ -16,5 +16,5 @@ testasp.vulnweb.com
 testaspnet.vulnweb.com
 testhtml5.vulnweb.com
 rest.vulnweb.com
-# Zero Bank — vulnerable banking demo:
+# Zero Bank - vulnerable banking demo:
 zero.webappsecurity.com

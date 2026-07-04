@@ -1,5 +1,5 @@
 """
-Domain ownership verification — the self-serve legal gate. These cover the
+Domain ownership verification - the self-serve legal gate. These cover the
 pure, deterministic pieces (token + normalization + instructions). The async
 DNS/HTTP checks hit the network and are exercised in integration, not here.
 """

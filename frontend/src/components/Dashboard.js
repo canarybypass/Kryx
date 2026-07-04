@@ -22,7 +22,7 @@ export default function Dashboard({ user, onLogout }) {
       setUsage(u);
       setScans(list);
     } catch {
-      /* token may be stale — App handles 401 on next load */
+      /* token may be stale - App handles 401 on next load */
     }
   }, []);
 
@@ -164,18 +164,18 @@ function VerifyPanel({ ins, onRetry }) {
         Add ONE of the following, then re-run the scan:
       </p>
       <div style={s.option}>
-        <div style={s.optTitle}>Option A — DNS TXT record</div>
+        <div style={s.optTitle}>Option A - DNS TXT record</div>
         <Code label="Host" value={ins.dns.host} />
         <Code label="Type" value={ins.dns.type} />
         <Code label="Value" value={ins.dns.value} />
       </div>
       <div style={s.option}>
-        <div style={s.optTitle}>Option B — file on the site</div>
+        <div style={s.optTitle}>Option B - file on the site</div>
         <Code label="URL" value={ins.file.url} />
         <Code label="Content" value={ins.file.content} />
       </div>
       <button style={s.run} onClick={onRetry}>
-        I've added it — re-run scan
+        I've added it - re-run scan
       </button>
     </div>
   );
@@ -207,7 +207,7 @@ function severitySummary(stats) {
   if (by.high) parts.push(`${by.high}H`);
   if (by.medium) parts.push(`${by.medium}M`);
   if (by.low) parts.push(`${by.low}L`);
-  return parts.length ? parts.join(" · ") : "—";
+  return parts.length ? parts.join(" · ") : "-";
 }
 
 function fmtDate(d) {

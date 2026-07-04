@@ -1,5 +1,5 @@
 """
-Authorization gate — the legal safety rail. If this regresses, the engine
+Authorization gate - the legal safety rail. If this regresses, the engine
 could scan a host it isn't allowed to. These tests pin the gate's behavior:
 default DENY, allow only local / explicitly-scoped / wildcard-scoped hosts.
 """

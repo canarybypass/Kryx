@@ -1,5 +1,5 @@
 """
-Kryx Autonomous Orchestrator — discover targets, dispatch to engines, queue
+Kryx Autonomous Orchestrator - discover targets, dispatch to engines, queue
 findings for review.
 
 OSS track (white-box, read-only, legal): discover open-source repos, audit

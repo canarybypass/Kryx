@@ -1,5 +1,5 @@
 """
-Kryx Discovery — find AUTHORIZED targets to scan.
+Kryx Discovery - find AUTHORIZED targets to scan.
 
 Pulls aggregated, daily-updated bug-bounty in-scope domains/wildcards from a
 public feed (arkadiyt/bounty-targets-data). Being in-scope means the program
@@ -7,7 +7,7 @@ authorizes testing of those hosts. Cached locally; the authz gate reads the
 cache so the engine only ever touches authorized hosts.
 
 NOTE: in-scope authorizes testing, but each program may still restrict
-AUTOMATED scanning — review the program's policy before mass-scanning.
+AUTOMATED scanning - review the program's policy before mass-scanning.
 """
 import asyncio
 from pathlib import Path
@@ -70,7 +70,7 @@ def sample_targets(n: int = 20) -> list[str]:
 async def discover_oss_repos(query: str = "language:python stars:50..2000 pushed:>2025-01-01",
                              n: int = 10) -> list[dict]:
     """Find open-source repos to audit (white-box). Default query targets
-    actively-maintained, moderately-popular projects — big enough to matter,
+    actively-maintained, moderately-popular projects - big enough to matter,
     small enough to be under-audited (better CVE candidates than huge repos).
     Reading public source is legal; findings go through responsible disclosure.
     """

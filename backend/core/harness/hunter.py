@@ -1,5 +1,5 @@
 """
-Kryx Hunter Stage — параллельные агенты для поиска уязвимостей
+Kryx Hunter Stage - параллельные агенты для поиска уязвимостей
 """
 import json
 import asyncio
@@ -97,9 +97,9 @@ class HunterStage:
                 get_params.append(f"  - {test_url}  | параметры: {', '.join(params)}")
             else:
                 plain.append(f"  - {url}")
-        out = ["КАРТА АТАКИ — реальные эндпоинты с краулинга. Тестируй ИХ конкретно, НЕ угадывай URL."]
+        out = ["КАРТА АТАКИ - реальные эндпоинты с краулинга. Тестируй ИХ конкретно, НЕ угадывай URL."]
         if get_params:
-            out.append("Параметризованные GET (ПРИОРИТЕТ для SQLi/XSS/LFI — передавай в инструмент ПОЛНЫЙ URL с параметрами):")
+            out.append("Параметризованные GET (ПРИОРИТЕТ для SQLi/XSS/LFI - передавай в инструмент ПОЛНЫЙ URL с параметрами):")
             out += get_params[:40]
         if body_eps:
             out.append("API с телом запроса (тестируй каждое поле на инъекции):")
@@ -152,7 +152,7 @@ class HunterStage:
         surface_text = self._surface_text()
         base_context = (
             f"Target: {self.target}\n"
-            f"Attack class: {attack_class['name']} — {attack_class['description']}\n"
+            f"Attack class: {attack_class['name']} - {attack_class['description']}\n"
             f"Available tools: {', '.join(attack_class['tools'])}\n\n"
             f"{surface_text}\n\n"
             f"Recon data:\n{json.dumps(self.recon, indent=2, ensure_ascii=False)[:1500]}"
@@ -226,7 +226,7 @@ class HunterStage:
                     "useful": memory.observations[-1].useful,
                 })
 
-        # Timeout — return whatever findings memory has
+        # Timeout - return whatever findings memory has
         return memory.findings
 
 

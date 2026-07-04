@@ -1,5 +1,5 @@
 """
-Kryx Auth — JWT регистрация, логин, middleware
+Kryx Auth - JWT регистрация, логин, middleware
 """
 import os
 from datetime import datetime, timedelta
@@ -17,7 +17,7 @@ from sqlalchemy.orm import selectinload
 from db import User, get_db
 
 def _load_secret_key() -> str:
-    """Load JWT secret. Never fall back to a shared hardcoded default — a known
+    """Load JWT secret. Never fall back to a shared hardcoded default - a known
     key lets anyone forge tokens. Require a strong key in prod; in dev, mint a
     random ephemeral one (tokens won't survive a restart, which is fine)."""
     key = os.getenv("SECRET_KEY")
@@ -35,7 +35,7 @@ def _load_secret_key() -> str:
             "'import secrets; print(secrets.token_urlsafe(48))'"
         )
     import secrets as _secrets
-    print("[auth] WARNING: SECRET_KEY not set — using a random ephemeral key "
+    print("[auth] WARNING: SECRET_KEY not set - using a random ephemeral key "
           "(dev only; tokens reset on restart).")
     return _secrets.token_urlsafe(48)
 
@@ -111,7 +111,7 @@ async def get_current_user(
     except (JWTError, KeyError, ValueError):
         raise exc
 
-    # Eager-load the organization — endpoints read user.organization (tier,
+    # Eager-load the organization - endpoints read user.organization (tier,
     # quota, billing) and a lazy load outside the async session raises
     # MissingGreenlet.
     user = await db.get(User, user_id, options=[selectinload(User.organization)])

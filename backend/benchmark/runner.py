@@ -1,5 +1,5 @@
 """
-Benchmark Runner — запуск агента на каждой цели и сбор метрик
+Benchmark Runner - запуск агента на каждой цели и сбор метрик
 """
 import asyncio
 from datetime import datetime
@@ -159,7 +159,7 @@ async def run_benchmark(
     """
     Запустить benchmark.
     
-    target_names: список имён целей (если None — все)
+    target_names: список имён целей (если None - все)
     difficulty: фильтр по сложности (beginner/intermediate/advanced)
     """
     from benchmark.targets import get_target_by_name, get_targets_by_difficulty

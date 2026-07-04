@@ -1,5 +1,5 @@
 """
-Plan quota & budget protection — the gate that stops one user from burning the
+Plan quota & budget protection - the gate that stops one user from burning the
 API budget. Pins the model per tier (cheap for low tiers, Opus for paid) and
 enforces monthly + concurrency limits.
 """

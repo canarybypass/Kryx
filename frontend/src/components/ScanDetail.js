@@ -52,7 +52,7 @@ export default function ScanDetail({ scanId, onClose }) {
                   {scan.status}
                 </strong>
               </span>
-              {ACTIVE.has(scan.status) && <span style={{ color: "#888" }}>live — updating…</span>}
+              {ACTIVE.has(scan.status) && <span style={{ color: "#888" }}>live - updating…</span>}
             </div>
 
             {scan.summary && <p style={s.summary}>{scan.summary}</p>}

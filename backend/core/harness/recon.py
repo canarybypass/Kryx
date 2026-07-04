@@ -1,5 +1,5 @@
 """
-Kryx Recon Stage — первичная разведка цели
+Kryx Recon Stage - первичная разведка цели
 """
 import json
 from utils.llm import get_llm

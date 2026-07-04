@@ -1,5 +1,5 @@
 """
-Benchmark Targets — известные уязвимые машины с ground truth CVE
+Benchmark Targets - известные уязвимые машины с ground truth CVE
 Используется для оценки качества агента
 """
 

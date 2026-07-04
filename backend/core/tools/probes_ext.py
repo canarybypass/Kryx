@@ -1,12 +1,12 @@
 """
-Kryx extended probes — deterministic HTTP checks that widen attack coverage
+Kryx extended probes - deterministic HTTP checks that widen attack coverage
 beyond the core probe set. Each is a self-contained async function returning the
 standard shape:  {"url", "vulnerable": bool, "findings": [...], "note": str}
 
 These are tool-grounded (real requests, real evidence) so findings pass the
 proof-by-execution bar. The hunter LLM only decides WHEN to call them.
 
-Batch 1 — recon/header-level, low false-positive:
+Batch 1 - recon/header-level, low false-positive:
   headers_probe, crlf_probe, host_header_probe, hpp_probe, param_miner, cache_probe
 """
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
@@ -44,7 +44,7 @@ async def headers_probe(url: str) -> dict:
         csp = h.get("content-security-policy", "")
         if not xfo and "frame-ancestors" not in csp.lower():
             findings.append({"issue": "Clickjacking", "severity": "medium",
-                             "proof": "No X-Frame-Options and no CSP frame-ancestors — page is framable."})
+                             "proof": "No X-Frame-Options and no CSP frame-ancestors - page is framable."})
         if "content-security-policy" not in h:
             findings.append({"issue": "Missing CSP", "severity": "low",
                              "proof": "No Content-Security-Policy header."})
@@ -92,7 +92,7 @@ async def crlf_probe(url: str) -> dict:
                 hl = {k.lower(): v for k, v in r.headers.items()}
                 if "x-kryx-inj" in hl or "kryxcrlf" in r.headers.get("set-cookie", ""):
                     findings.append({"param": pname, "payload": pl,
-                                     "proof": "Injected header reflected in response — CRLF injection."})
+                                     "proof": "Injected header reflected in response - CRLF injection."})
                     break
     return {"url": url, "vulnerable": len(findings) > 0, "findings": findings,
             "note": "CRLF / HTTP response header injection."}
@@ -147,7 +147,7 @@ async def hpp_probe(url: str) -> dict:
                                           f"(status {base.status_code}->{r.status_code}, "
                                           f"len {len(base.text)}->{len(r.text)})."})
     return {"url": url, "vulnerable": len(findings) > 0, "findings": findings,
-            "note": "HTTP Parameter Pollution — duplicated params alter behavior."}
+            "note": "HTTP Parameter Pollution - duplicated params alter behavior."}
 
 
 # ── Hidden parameter discovery ─────────────────────────────────────────────
@@ -179,7 +179,7 @@ async def param_miner(url: str) -> dict:
                              "proof": f"'{pname}' alters response (status {base.status_code}->{r.status_code}, "
                                       f"len {base_len}->{len(r.text)})."})
     return {"url": url, "vulnerable": len(hits) > 0, "findings": hits,
-            "note": "Hidden-parameter discovery — undocumented inputs worth attacking."}
+            "note": "Hidden-parameter discovery - undocumented inputs worth attacking."}
 
 
 # ── Web cache poisoning / deception surface ────────────────────────────────
@@ -206,7 +206,7 @@ async def cache_probe(url: str) -> dict:
             r2 = await c.get(decep)
             if r2.status_code == 200 and "text/html" in r2.headers.get("content-type", ""):
                 findings.append({"issue": "Cache deception",
-                                 "proof": f"{decep} returns HTML (200) — static-suffix path served dynamic content."})
+                                 "proof": f"{decep} returns HTML (200) - static-suffix path served dynamic content."})
         except Exception:
             pass
     return {"url": url, "vulnerable": len(findings) > 0, "findings": findings,
@@ -214,7 +214,7 @@ async def cache_probe(url: str) -> dict:
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# Batch 2 — RCE-tier / high-impact classes
+# Batch 2 - RCE-tier / high-impact classes
 #   xxe_probe, nosql_probe, jwt_probe, graphql_probe,
 #   deserialization_probe, prototype_pollution_probe, upload_probe
 # ════════════════════════════════════════════════════════════════════════════
@@ -247,7 +247,7 @@ async def xxe_probe(url: str) -> dict:
                     continue
                 if marker in (r.text or ""):
                     findings.append({"content_type": ct,
-                                     "proof": f"External entity expanded — '{marker}' leaked into response (XXE → file read)."})
+                                     "proof": f"External entity expanded - '{marker}' leaked into response (XXE → file read)."})
                     return {"url": url, "vulnerable": True, "findings": findings,
                             "note": "XXE confirmed: server parsed external entity and returned local file content."}
     return {"url": url, "vulnerable": False, "findings": findings,
@@ -279,7 +279,7 @@ async def nosql_probe(url: str) -> dict:
             if any(s in blob for s in ("mongo", "bson", "$ne", "casterror", "e11000")):
                 findings.append({"param": pname, "proof": "Mongo/NoSQL error surfaced on operator injection."})
             elif base is not None and abs(len(r.text) - base_len) > 80 and r.status_code == 200:
-                findings.append({"param": pname, "proof": f"[$ne] operator changes response (len {base_len}->{len(r.text)}) — possible NoSQLi."})
+                findings.append({"param": pname, "proof": f"[$ne] operator changes response (len {base_len}->{len(r.text)}) - possible NoSQLi."})
         # JSON body auth-bypass attempt
         for payload in ({"username": {"$ne": None}, "password": {"$ne": None}},
                         {"user": {"$gt": ""}, "pass": {"$gt": ""}}):
@@ -291,7 +291,7 @@ async def nosql_probe(url: str) -> dict:
             if r.status_code in (200, 302) and any(s in blob for s in ("token", "welcome", "dashboard", "success", "logout")):
                 findings.append({"payload": payload, "proof": f"NoSQL operator JSON body returns authenticated-looking response ({r.status_code})."})
     return {"url": url, "vulnerable": len(findings) > 0, "findings": findings,
-            "note": "NoSQL injection (Mongo operator) — auth bypass / query tampering."}
+            "note": "NoSQL injection (Mongo operator) - auth bypass / query tampering."}
 
 
 # ── JWT weaknesses ─────────────────────────────────────────────────────────
@@ -333,7 +333,7 @@ async def jwt_probe(url: str, token: str = None) -> dict:
                      "claims": list(payload.keys())})
     if str(header.get("alg", "")).lower() == "none":
         findings.append({"issue": "alg=none", "severity": "critical",
-                         "proof": "Token uses alg=none — signature not verified, trivially forgeable."})
+                         "proof": "Token uses alg=none - signature not verified, trivially forgeable."})
     # Weak HMAC secret crack
     if str(header.get("alg", "")).upper().startswith("HS"):
         signing_input = f"{h_b64}.{p_b64}".encode()
@@ -343,7 +343,7 @@ async def jwt_probe(url: str, token: str = None) -> dict:
             calc = base64.urlsafe_b64encode(hmac.new(secret.encode(), signing_input, algo).digest()).rstrip(b"=").decode()
             if calc == sig:
                 findings.append({"issue": "weak HMAC secret", "severity": "critical",
-                                 "proof": f"JWT signed with weak secret '{secret}' — full token forgery possible."})
+                                 "proof": f"JWT signed with weak secret '{secret}' - full token forgery possible."})
                 break
     has_issue = any(f.get("severity") for f in findings)
     return {"url": url, "vulnerable": has_issue, "findings": findings,
@@ -373,7 +373,7 @@ async def graphql_probe(url: str) -> dict:
             if "__schema" in (r.text or "") and r.status_code == 200:
                 types = re.findall(r'"name":"(\w+)"', r.text)
                 findings.append({"endpoint": ep, "severity": "medium",
-                                 "proof": f"GraphQL introspection ENABLED — schema disclosed ({len(set(types))} types). Attack surface fully mapped."})
+                                 "proof": f"GraphQL introspection ENABLED - schema disclosed ({len(set(types))} types). Attack surface fully mapped."})
                 break
     return {"url": url, "vulnerable": len(findings) > 0, "findings": findings,
             "note": "GraphQL introspection / endpoint discovery."}
@@ -390,7 +390,7 @@ _DESER_SIGS = [
 
 
 async def deserialization_probe(url: str) -> dict:
-    """Detect serialized objects in cookies/params/response — a strong indicator
+    """Detect serialized objects in cookies/params/response - a strong indicator
     of an insecure-deserialization sink (RCE-tier if a gadget chain exists)."""
     url = _norm(url)
     findings = []
@@ -406,7 +406,7 @@ async def deserialization_probe(url: str) -> dict:
             for lang, rx in _DESER_SIGS:
                 if rx.search(blob):
                     findings.append({"location": where, "format": lang, "severity": "high",
-                                     "proof": f"{lang} serialized object detected in {where} — test for insecure deserialization (gadget → RCE)."})
+                                     "proof": f"{lang} serialized object detected in {where} - test for insecure deserialization (gadget → RCE)."})
     return {"url": url, "vulnerable": len(findings) > 0, "findings": findings,
             "note": "Insecure-deserialization indicator (serialized blob present)."}
 
@@ -423,7 +423,7 @@ async def prototype_pollution_probe(url: str) -> dict:
             r = await c.get(_with_params(url, {"__proto__[kryxpp]": "polluted"}))
             if "kryxpp" in (r.text or "") or r.status_code >= 500:
                 findings.append({"vector": "query __proto__", "severity": "high",
-                                 "proof": f"__proto__ query param reflected/errored (status {r.status_code}) — prototype pollution."})
+                                 "proof": f"__proto__ query param reflected/errored (status {r.status_code}) - prototype pollution."})
         except Exception:
             pass
         # JSON body vector
@@ -431,11 +431,11 @@ async def prototype_pollution_probe(url: str) -> dict:
             r = await c.post(url, json={"__proto__": {"kryxpp": "polluted"}})
             if "kryxpp" in (r.text or "") or r.status_code >= 500:
                 findings.append({"vector": "JSON __proto__", "severity": "high",
-                                 "proof": f"JSON __proto__ body reflected/errored (status {r.status_code}) — prototype pollution."})
+                                 "proof": f"JSON __proto__ body reflected/errored (status {r.status_code}) - prototype pollution."})
         except Exception:
             pass
     return {"url": url, "vulnerable": len(findings) > 0, "findings": findings,
-            "note": "Prototype pollution (__proto__) — can escalate to RCE/auth bypass in JS apps."}
+            "note": "Prototype pollution (__proto__) - can escalate to RCE/auth bypass in JS apps."}
 
 
 # ── Insecure file upload (best-effort detection) ───────────────────────────
@@ -453,13 +453,13 @@ async def upload_probe(url: str) -> dict:
         blob = (r.text or "").lower()
         if r.status_code in (200, 201) and any(s in blob for s in ("upload", "success", "kryx.php", "/uploads/", "file")):
             findings.append({"severity": "high",
-                             "proof": f"Server accepted 'kryx.php.jpg' multipart upload ({r.status_code}) — verify executable upload path (webshell risk)."})
+                             "proof": f"Server accepted 'kryx.php.jpg' multipart upload ({r.status_code}) - verify executable upload path (webshell risk)."})
     return {"url": url, "vulnerable": len(findings) > 0, "findings": findings,
             "note": "Insecure file upload (double-extension / content-type bypass)."}
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# Batch 3 — cloud, exotic injections, CSRF, websockets, smuggling, mgmt panels
+# Batch 3 - cloud, exotic injections, CSRF, websockets, smuggling, mgmt panels
 #   cloud_metadata_probe, ldap_probe, xpath_probe, ssi_probe, csrf_probe,
 #   websocket_probe, smuggling_probe, open_mgmt_probe
 # ════════════════════════════════════════════════════════════════════════════
@@ -496,7 +496,7 @@ async def cloud_metadata_probe(url: str) -> dict:
                     continue
                 if any(m in (r.text or "") for m in markers):
                     findings.append({"param": pname, "cloud": cloud, "severity": "critical",
-                                     "proof": f"SSRF via '{pname}' reached {cloud} metadata — instance credentials exposed ({meta_url})."})
+                                     "proof": f"SSRF via '{pname}' reached {cloud} metadata - instance credentials exposed ({meta_url})."})
                     return {"url": url, "vulnerable": True, "findings": findings,
                             "note": "SSRF → cloud metadata → credentials (cloud account takeover)."}
     return {"url": url, "vulnerable": False, "findings": findings,
@@ -525,9 +525,9 @@ async def ldap_probe(url: str) -> dict:
                     continue
                 low = (r.text or "").lower()
                 if any(e in low for e in errs):
-                    findings.append({"param": pname, "payload": pl, "proof": "LDAP error surfaced — LDAP injection."}); break
+                    findings.append({"param": pname, "payload": pl, "proof": "LDAP error surfaced - LDAP injection."}); break
                 if abs(len(r.text) - base_len) > 100 and r.status_code == 200:
-                    findings.append({"param": pname, "payload": pl, "proof": f"Wildcard alters response (len {base_len}->{len(r.text)}) — possible LDAP injection."}); break
+                    findings.append({"param": pname, "payload": pl, "proof": f"Wildcard alters response (len {base_len}->{len(r.text)}) - possible LDAP injection."}); break
     return {"url": url, "vulnerable": len(findings) > 0, "findings": findings, "note": "LDAP injection."}
 
 
@@ -553,7 +553,7 @@ async def xpath_probe(url: str) -> dict:
                     continue
                 low = (r.text or "").lower()
                 if any(e in low for e in errs):
-                    findings.append({"param": pname, "payload": pl, "proof": "XPath error surfaced — XPath injection."}); break
+                    findings.append({"param": pname, "payload": pl, "proof": "XPath error surfaced - XPath injection."}); break
     return {"url": url, "vulnerable": len(findings) > 0, "findings": findings, "note": "XPath injection."}
 
 
@@ -573,7 +573,7 @@ async def ssi_probe(url: str) -> dict:
                 continue
             if "kryx-ssi-12345" in (r.text or "") and "<!--#exec" not in (r.text or ""):
                 findings.append({"param": pname, "severity": "critical",
-                                 "proof": "SSI directive executed (#exec) — server-side includes injection → RCE."}); break
+                                 "proof": "SSI directive executed (#exec) - server-side includes injection → RCE."}); break
     return {"url": url, "vulnerable": len(findings) > 0, "findings": findings, "note": "Server-Side Includes injection."}
 
 
@@ -599,14 +599,14 @@ async def csrf_probe(url: str) -> dict:
         # SameSite on cookies
         for ck in (r.headers.get_list("set-cookie") if hasattr(r.headers, "get_list") else []):
             if "samesite" not in ck.lower():
-                findings.append({"severity": "low", "proof": f"Cookie '{ck.split('=')[0]}' has no SameSite — cross-site sendable."}); break
+                findings.append({"severity": "low", "proof": f"Cookie '{ck.split('=')[0]}' has no SameSite - cross-site sendable."}); break
     return {"url": url, "vulnerable": len(findings) > 0, "findings": findings, "note": "CSRF surface (missing token / SameSite)."}
 
 
 # ── WebSocket: discovery + Cross-Site WebSocket Hijacking ──────────────────
 async def websocket_probe(url: str) -> dict:
     """Find WebSocket endpoints in the page and test Origin validation
-    (CSWSH — a handshake accepted with a foreign Origin)."""
+    (CSWSH - a handshake accepted with a foreign Origin)."""
     url = _norm(url)
     findings = []
     async with auth_client(timeout=8, follow_redirects=True, verify=False) as c:
@@ -626,7 +626,7 @@ async def websocket_probe(url: str) -> dict:
         try:
             async with websockets.connect(ep, origin="https://kryx-evil.example", open_timeout=6) as ws:
                 findings.append({"endpoint": ep, "severity": "high",
-                                 "proof": "WebSocket handshake accepted with foreign Origin — Cross-Site WebSocket Hijacking."})
+                                 "proof": "WebSocket handshake accepted with foreign Origin - Cross-Site WebSocket Hijacking."})
         except Exception:
             continue
     return {"url": url, "vulnerable": len(findings) > 0, "findings": findings or [{"endpoints": list(ws_eps)}],
@@ -636,7 +636,7 @@ async def websocket_probe(url: str) -> dict:
 # ── HTTP Request Smuggling (conservative CL.TE timing) ─────────────────────
 async def smuggling_probe(url: str) -> dict:
     """Conservative CL.TE desync check: a smuggling-vulnerable front-end times out
-    waiting for a body the back-end already consumed. Flagged as POTENTIAL —
+    waiting for a body the back-end already consumed. Flagged as POTENTIAL -
     request smuggling needs manual confirmation."""
     p = urlparse(_norm(url))
     host = p.hostname
@@ -672,7 +672,7 @@ async def smuggling_probe(url: str) -> dict:
     findings = []
     if tb >= 0 and ts >= 5 and ts - tb > 4:
         findings.append({"severity": "high", "confidence": "potential",
-                         "proof": f"CL.TE request delayed back-end ({ts:.1f}s vs {tb:.1f}s baseline) — POTENTIAL HTTP request smuggling, verify manually."})
+                         "proof": f"CL.TE request delayed back-end ({ts:.1f}s vs {tb:.1f}s baseline) - POTENTIAL HTTP request smuggling, verify manually."})
     return {"url": url, "vulnerable": len(findings) > 0, "findings": findings,
             "note": "HTTP request smuggling (CL.TE timing, conservative)."}
 
@@ -709,7 +709,7 @@ async def open_mgmt_probe(url: str) -> dict:
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# Batch 4 — resource exhaustion / unbounded input (NON-DESTRUCTIVE by default)
+# Batch 4 - resource exhaustion / unbounded input (NON-DESTRUCTIVE by default)
 # ════════════════════════════════════════════════════════════════════════════
 import os as _os
 
@@ -718,7 +718,7 @@ async def resource_probe(url: str, method: str = "POST") -> dict:
     """Detect resource-exhaustion / unbounded-input DoS surface on a write
     endpoint WITHOUT taking the target down.
 
-    Safety model (non-destructive by default — this is a SaaS pointed at client
+    Safety model (non-destructive by default - this is a SaaS pointed at client
     prod): sends only a few BOUNDED, escalating payloads (≤512KB, ≤4 requests,
     sequential, early-stop), never floods. It looks for:
       • a missing request-size limit (no 413 Payload Too Large),
@@ -726,7 +726,7 @@ async def resource_probe(url: str, method: str = "POST") -> dict:
       • state-change-despite-error (resource seemingly created on an error).
     Aggressive sizes (up to KRYX_RESOURCE_MAX_KB) require the explicit consent
     flag KRYX_RESOURCE_AGGRESSIVE=1. Findings are flagged "potential" for manual
-    confirmation — we never actually exhaust the target.
+    confirmation - we never actually exhaust the target.
     """
     url = _norm(url)
     method = (method or "POST").upper()
@@ -758,7 +758,7 @@ async def resource_probe(url: str, method: str = "POST") -> dict:
                 dt = (_time.monotonic() - t0) * 1000
             except Exception:
                 findings.append({"size_kb": kb, "severity": "medium", "confidence": "potential",
-                                 "proof": f"A {kb}KB write body caused a timeout/error — potential resource exhaustion at scale (verify manually, non-destructively)."})
+                                 "proof": f"A {kb}KB write body caused a timeout/error - potential resource exhaustion at scale (verify manually, non-destructively)."})
                 break
 
             if r.status_code == 413:
@@ -768,25 +768,25 @@ async def resource_probe(url: str, method: str = "POST") -> dict:
             # Degradation signal: latency balloons disproportionately with size.
             if dt > max(1500.0, base_ms * 6) and dt > 800:
                 findings.append({"size_kb": kb, "severity": "medium", "confidence": "potential",
-                                 "proof": f"Latency {base_ms:.0f}ms → {dt:.0f}ms on a {kb}KB body — potential resource-exhaustion / no input-size cap."})
+                                 "proof": f"Latency {base_ms:.0f}ms → {dt:.0f}ms on a {kb}KB body - potential resource-exhaustion / no input-size cap."})
                 break
 
             # State change despite error (his insight): created on an error path?
             loc = r.headers.get("location", "")
             if r.status_code >= 400 and (loc or '"id"' in (r.text or "")[:600]):
                 findings.append({"size_kb": kb, "severity": "low", "confidence": "potential",
-                                 "proof": f"Oversized {kb}KB write returned {r.status_code} yet a resource looks created (Location/id present) — inconsistent error handling."})
+                                 "proof": f"Oversized {kb}KB write returned {r.status_code} yet a resource looks created (Location/id present) - inconsistent error handling."})
 
             if r.status_code < 500:
                 largest_ok = kb
 
         # Only a genuinely large accepted body (aggressive mode) is evidence of an
-        # *unbounded* limit — accepting 512KB is normal and would be noise.
+        # *unbounded* limit - accepting 512KB is normal and would be noise.
         if not limit_enforced and not findings and largest_ok >= 2048:
             findings.append({"size_kb": largest_ok, "severity": "low", "confidence": "potential",
-                             "proof": f"Server accepted a {largest_ok}KB body ({method}) with no 413 size limit — no effective request-size cap (resource-exhaustion surface)."})
+                             "proof": f"Server accepted a {largest_ok}KB body ({method}) with no 413 size limit - no effective request-size cap (resource-exhaustion surface)."})
 
-    note = ("Resource-exhaustion / unbounded-input — NON-DESTRUCTIVE bounded check"
+    note = ("Resource-exhaustion / unbounded-input - NON-DESTRUCTIVE bounded check"
             f" (max {max_kb}KB, aggressive={'on' if aggressive else 'off, set KRYX_RESOURCE_AGGRESSIVE=1'}).")
     return {"url": url, "vulnerable": len(findings) > 0, "findings": findings,
             "baseline_status": base_status, "note": note}

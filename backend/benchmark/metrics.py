@@ -1,5 +1,5 @@
 """
-Benchmark Metrics — расчёт precision, recall, F1, false positive rate
+Benchmark Metrics - расчёт precision, recall, F1, false positive rate
 """
 from dataclasses import dataclass
 
@@ -13,14 +13,14 @@ class BenchmarkMetrics:
 
     @property
     def precision(self) -> float:
-        """Precision = TP / (TP + FP) — доля правильных среди найденных."""
+        """Precision = TP / (TP + FP) - доля правильных среди найденных."""
         if self.true_positives + self.false_positives == 0:
             return 0.0
         return self.true_positives / (self.true_positives + self.false_positives)
 
     @property
     def recall(self) -> float:
-        """Recall = TP / (TP + FN) — доля найденных среди всех реальных."""
+        """Recall = TP / (TP + FN) - доля найденных среди всех реальных."""
         if self.true_positives + self.false_negatives == 0:
             return 0.0
         return self.true_positives / (self.true_positives + self.false_negatives)
@@ -34,7 +34,7 @@ class BenchmarkMetrics:
 
     @property
     def false_positive_rate(self) -> float:
-        """FPR = FP / (FP + TN) — но TN не применимо, возвращаем FP / total_found."""
+        """FPR = FP / (FP + TN) - но TN не применимо, возвращаем FP / total_found."""
         total_found = self.true_positives + self.false_positives
         if total_found == 0:
             return 0.0
@@ -74,7 +74,7 @@ def calculate_metrics(ground_truth: dict, agent_findings: list) -> BenchmarkMetr
         if cve := finding.get("cve"):
             found_cves.add(cve)
 
-        # Тип уязвимости — определяем из названия или description
+        # Тип уязвимости - определяем из названия или description
         vuln_type = _infer_vuln_type(finding)
         if vuln_type:
             found_types.add(vuln_type)

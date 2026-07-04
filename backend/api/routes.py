@@ -255,7 +255,7 @@ async def scan_live_v2(websocket: WebSocket, scan_id: int):
 
 @router.websocket("/v2/scans/stream")
 async def scan_stream_v2(websocket: WebSocket):
-    """Authenticated live scan stream — the browser terminal.
+    """Authenticated live scan stream - the browser terminal.
 
     Client sends {token, target, target_type}. We enforce the same gates as
     POST /v2/scans (quota + domain ownership), then run the real pipeline with a
@@ -284,7 +284,7 @@ async def scan_stream_v2(websocket: WebSocket):
 
         user_id = _user_id_from_token(token)
         if not user_id:
-            await emit("error", "Not authenticated — log in again.")
+            await emit("error", "Not authenticated - log in again.")
             return
         if not target:
             await emit("error", "No target provided.")
@@ -741,7 +741,7 @@ async def get_exploit_templates(
 
 @router.get("/knowledge/exploits/{template_id}")
 async def get_exploit_template_code(template_id: int, user: CurrentUser, db: DB):
-    """Get full exploit template code. Auth required — raw exploit code is sensitive."""
+    """Get full exploit template code. Auth required - raw exploit code is sensitive."""
     from db import ExploitTemplate
     
     template = await db.get(ExploitTemplate, template_id)

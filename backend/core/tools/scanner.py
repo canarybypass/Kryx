@@ -1,5 +1,5 @@
 """
-Kryx Tool Integrations — wrappers around real pentesting tools
+Kryx Tool Integrations - wrappers around real pentesting tools
 """
 import os
 import json
@@ -50,7 +50,7 @@ TOOLS_SCHEMA = [
     },
     {
         "name": "sensitive_files",
-        "description": "Directly probe for commonly-exposed sensitive files (.env, .git/config, config.php, backups, db dumps, secrets). Use this for config/secret exposure — it catches files dir_bruteforce misses.",
+        "description": "Directly probe for commonly-exposed sensitive files (.env, .git/config, config.php, backups, db dumps, secrets). Use this for config/secret exposure - it catches files dir_bruteforce misses.",
         "parameters": {"url": "string"},
     },
     {
@@ -530,14 +530,14 @@ async def _http_probe(url: str) -> dict:
             continue
 
     return {"error": f"Could not connect to {url}", "reason": last_err or "unknown",
-            "tried": urls, "hint": "Target unreachable from scanner host (firewall/DNS/down) — not necessarily a vuln."}
+            "tried": urls, "hint": "Target unreachable from scanner host (firewall/DNS/down) - not necessarily a vuln."}
 
 
 async def _xss_probe(url: str) -> dict:
     """Test XSS deterministically by injecting a unique marker and checking if
     it comes back UNescaped (real XSS) vs escaped (safe). Covers:
       - reflected (GET): each query parameter
-      - reflected/stored (POST): forms on the page — submit, then re-fetch and
+      - reflected/stored (POST): forms on the page - submit, then re-fetch and
         see if the marker persists unescaped (stored) or reflects (reflected)
     DOM XSS needs browser_probe. Pass a URL (with params and/or a form)."""
     import secrets
@@ -628,13 +628,13 @@ async def _idor_probe(url: str) -> dict:
     object id in the URL, request neighboring ids, and check whether distinct
     per-object records come back. A page that differs only by the id number is
     NOT flagged; only genuinely different records (different owner/data) count.
-    Full proof needs two identities — anonymous access to distinct records is a
+    Full proof needs two identities - anonymous access to distinct records is a
     strong IDOR signal when the endpoint should be access-controlled."""
     import re
     from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
     from difflib import SequenceMatcher
 
-    # STRONG markers of private/per-user data (real IDOR). Deliberately strict —
+    # STRONG markers of private/per-user data (real IDOR). Deliberately strict -
     # incidental words (an email or "private"/"credit" in public product copy)
     # must NOT trigger. Require an actual secret/credential token or a private
     # JSON field, which public pages don't carry.
@@ -698,12 +698,12 @@ async def _idor_probe(url: str) -> dict:
 
     distinct = len(accessible) >= 2
     # Only a real IDOR if the other records expose PRIVATE data. Distinct public
-    # records (products, blog posts) are not IDOR — that's the FP we kill here.
+    # records (products, blog posts) are not IDOR - that's the FP we kill here.
     sensitive = any(a["sensitive"] for a in accessible)
     vulnerable = distinct and sensitive
 
     if distinct and not sensitive:
-        note = ("Distinct records enumerable, but no sensitive/PII data found — "
+        note = ("Distinct records enumerable, but no sensitive/PII data found - "
                 "likely a PUBLIC resource (catalog/blog), NOT IDOR.")
     else:
         note = ("Other users' private data returned without authorization => "
@@ -723,7 +723,7 @@ async def _idor_probe(url: str) -> dict:
 
 async def _dom_xss_probe(url: str) -> dict:
     """Detect DOM-based XSS with a headless browser. The payload never reaches
-    the server — it executes client-side. We inject a payload that, if it runs,
+    the server - it executes client-side. We inject a payload that, if it runs,
     sets a unique window flag; then we read the flag back. Flag set => our input
     executed as JS (real DOM XSS). Covers location.hash and query-param sinks
     (innerHTML, document.write, eval, ...)."""
@@ -784,7 +784,7 @@ async def _dom_xss_probe(url: str) -> dict:
         "url": url,
         "vulnerable": len(findings) > 0,
         "findings": findings,
-        "note": "DOM XSS via headless browser — payload executed and set a window flag.",
+        "note": "DOM XSS via headless browser - payload executed and set a window flag.",
     }
 
 
@@ -951,7 +951,7 @@ async def _json_body_probe(url: str, body: dict, method: str = "POST") -> dict:
       - ssti arithmetic  ({{a*b}})         -> product => SSTI/RCE
       - error-based SQLi (')               -> SQL error signature => SQLi
       - XSS marker (flagged ONLY if reflected unescaped AND HTML content-type)
-    All proof-by-execution / signature — reflection-safe like the GET probes."""
+    All proof-by-execution / signature - reflection-safe like the GET probes."""
     import random
     import secrets
     import copy
@@ -1059,7 +1059,7 @@ async def _json_body_probe(url: str, body: dict, method: str = "POST") -> dict:
             if hit:
                 continue
 
-            # reflected XSS — only real if the body is rendered as HTML
+            # reflected XSS - only real if the body is rendered as HTML
             m = "kx" + secrets.token_hex(3)
             tail = "<svg/onload=alert(1)>"
             try:
@@ -1073,7 +1073,7 @@ async def _json_body_probe(url: str, body: dict, method: str = "POST") -> dict:
     return {"url": url, "method": method, "vulnerable": len(findings) > 0,
             "findings": findings,
             "tested_fields": [".".join(str(p) for p in pp) for pp in paths],
-            "note": "JSON-body injection (cmdi/ssti/sqli/xss) — proof by execution/signature."}
+            "note": "JSON-body injection (cmdi/ssti/sqli/xss) - proof by execution/signature."}
 
 
 async def _ssrf_probe(url: str) -> dict:
@@ -1277,7 +1277,7 @@ async def _sqlmap_check(url: str) -> dict:
 
     out = result.get("stdout", "")
     low = out.lower()
-    # Match the VERDICT only — not the per-test "testing '... injectable'" lines
+    # Match the VERDICT only - not the per-test "testing '... injectable'" lines
     # (which appear even when nothing is vulnerable). sqlmap prints the
     # "Parameter:/Type:/Payload:" block and "is vulnerable" only on a real hit.
     vulnerable = (
@@ -1674,11 +1674,11 @@ async def _browser_probe(url: str, actions: list | None = None) -> dict:
         # Detect security issues
         issues = []
         if any(e["text"] for e in results["console_errors"]):
-            issues.append("JavaScript errors detected — may indicate unstable code paths")
+            issues.append("JavaScript errors detected - may indicate unstable code paths")
         if js_globals:
             issues.append(f"Exposed JS globals with sensitive names: {[g['key'] for g in js_globals]}")
         if any("password" in str(f).lower() for f in forms):
-            issues.append("Login form detected — test for auth bypass, brute force")
+            issues.append("Login form detected - test for auth bypass, brute force")
         if results["network_requests"]:
             issues.append(f"Interesting API endpoints: {[r['url'] for r in results['network_requests'][:3]]}")
 
@@ -1689,7 +1689,7 @@ async def _browser_probe(url: str, actions: list | None = None) -> dict:
     return results
 
 
-# ── Extended probe schemas (probes_ext) — widen coverage ───────────────────
+# ── Extended probe schemas (probes_ext) - widen coverage ───────────────────
 TOOLS_SCHEMA.extend([
     {"name": "headers_probe",
      "description": "Audit response security headers + cookie flags: clickjacking (no X-Frame-Options/CSP frame-ancestors), missing CSP/HSTS, MIME sniffing, weak cookie flags (HttpOnly/Secure/SameSite). Run on any page.",
@@ -1722,7 +1722,7 @@ TOOLS_SCHEMA.extend([
      "description": "Discover a GraphQL endpoint and test if introspection is enabled (full schema disclosure → complete attack map). Tries /graphql, /api/graphql, etc.",
      "parameters": {"url": "string (URL)"}},
     {"name": "deserialization_probe",
-     "description": "Detect serialized objects (Java rO0AB, PHP O:, Python pickle, .NET __VIEWSTATE, Ruby Marshal) in cookies/params/response — strong insecure-deserialization (RCE) indicator.",
+     "description": "Detect serialized objects (Java rO0AB, PHP O:, Python pickle, .NET __VIEWSTATE, Ruby Marshal) in cookies/params/response - strong insecure-deserialization (RCE) indicator.",
      "parameters": {"url": "string (URL)"}},
     {"name": "prototype_pollution_probe",
      "description": "Test prototype pollution via __proto__ in query string and JSON body; flags reflection/500 (can escalate to RCE/auth-bypass in JS/Node apps).",
@@ -1746,7 +1746,7 @@ TOOLS_SCHEMA.extend([
      "description": "Detect CSRF surface: POST forms missing an anti-CSRF token and cookies without SameSite.",
      "parameters": {"url": "string (URL)"}},
     {"name": "websocket_probe",
-     "description": "Discover WebSocket endpoints in the page and test Origin validation (Cross-Site WebSocket Hijacking — handshake accepted from a foreign Origin).",
+     "description": "Discover WebSocket endpoints in the page and test Origin validation (Cross-Site WebSocket Hijacking - handshake accepted from a foreign Origin).",
      "parameters": {"url": "string (URL)"}},
     {"name": "smuggling_probe",
      "description": "Conservative HTTP request smuggling (CL.TE timing) check; flags POTENTIAL desync for manual confirmation. Use on the site root.",
@@ -1755,6 +1755,6 @@ TOOLS_SCHEMA.extend([
      "description": "Probe exposed admin/debug/management panels: Spring actuator (env/heapdump), Tomcat manager, swagger/openapi, phpMyAdmin, Jenkins, Grafana, Kibana, .git, jolokia.",
      "parameters": {"url": "string (URL)"}},
     {"name": "resource_probe",
-     "description": "NON-DESTRUCTIVE resource-exhaustion / unbounded-input detector for WRITE endpoints (POST/PUT). Sends a few bounded, escalating payloads (≤512KB, ≤4 reqs, early-stop — never floods) and flags a missing size limit (no 413), latency degradation, or state-change-despite-error. Use on write endpoints. Aggressive sizes need explicit consent env; findings are 'potential'.",
+     "description": "NON-DESTRUCTIVE resource-exhaustion / unbounded-input detector for WRITE endpoints (POST/PUT). Sends a few bounded, escalating payloads (≤512KB, ≤4 reqs, early-stop - never floods) and flags a missing size limit (no 413), latency degradation, or state-change-despite-error. Use on write endpoints. Aggressive sizes need explicit consent env; findings are 'potential'.",
      "parameters": {"url": "string (write endpoint URL)", "method": "string (optional: POST|PUT, default POST)"}},
 ])

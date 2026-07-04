@@ -1,5 +1,5 @@
 """
-Kryx Authorization Gate — the legal safety rail.
+Kryx Authorization Gate - the legal safety rail.
 
 The engine refuses to actively scan any host that is not explicitly authorized.
 A host is authorized only if it is:
@@ -63,7 +63,7 @@ def is_authorized(target: str) -> tuple[bool, str]:
     if m:
         return True, f"authorized scope ({m})"
 
-    # Bug-bounty in-scope — but in-scope is NOT enough: the program must also
+    # Bug-bounty in-scope - but in-scope is NOT enough: the program must also
     # permit automated testing (you confirm this in bounty_automation_allowed.txt).
     try:
         from core.autonomous.discovery import load_cached_scopes
@@ -78,6 +78,6 @@ def is_authorized(target: str) -> tuple[bool, str]:
     except Exception:
         pass
 
-    return False, (f"'{host}' is NOT in any authorized scope — refusing to scan. "
+    return False, (f"'{host}' is NOT in any authorized scope - refusing to scan. "
                    f"Add it to {ALLOWLIST_FILE.name} (your assets / explicit permission) "
                    f"or ensure it's in a fetched bounty scope.")

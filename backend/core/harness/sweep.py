@@ -1,5 +1,5 @@
 """
-Kryx Sweep Stage — deterministic detector pass over the discovered surface.
+Kryx Sweep Stage - deterministic detector pass over the discovered surface.
 
 For every endpoint/param found by the crawler, run the relevant deterministic
 detectors (sqli, xss, dom-xss, cmdi, ssti, lfi, idor, ssrf) regardless of what
@@ -99,7 +99,7 @@ class SweepStage:
 
         # Per-endpoint deterministic detector pass. Bound concurrency so a big
         # surface doesn't fork dozens of sqlmap processes at once (full coverage,
-        # just throttled — like a real scanner).
+        # just throttled - like a real scanner).
         sem = asyncio.Semaphore(int(os.getenv("KRYX_SWEEP_CONCURRENCY", "6")))
 
         async def _bounded(e):

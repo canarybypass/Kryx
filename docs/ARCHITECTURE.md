@@ -1,4 +1,4 @@
-# Kryx v2.0 — Architecture Design
+# Kryx v2.0 - Architecture Design
 
 **AI-Powered 0-Day Hunting Platform**
 
@@ -10,10 +10,10 @@ Enterprise-grade autonomous vulnerability research platform that competes with c
 
 ## Core Differentiators
 
-1. **Autonomous 0-day discovery** — Static analysis + fuzzing + variant analysis
-2. **Advanced exploit development** — ROP chains, heap spray, kernel exploits, sandbox escapes
-3. **Production-ready** — Enterprise auth, API, billing, compliance-ready
-4. **Open architecture** — Extensible, plugin-based, fine-tunable models
+1. **Autonomous 0-day discovery** - Static analysis + fuzzing + variant analysis
+2. **Advanced exploit development** - ROP chains, heap spray, kernel exploits, sandbox escapes
+3. **Production-ready** - Enterprise auth, API, billing, compliance-ready
+4. **Open architecture** - Extensible, plugin-based, fine-tunable models
 
 ---
 
@@ -73,11 +73,11 @@ Enterprise-grade autonomous vulnerability research platform that competes with c
 **Purpose:** Find vulnerabilities through code analysis without execution
 
 **Techniques:**
-- **AST Parsing** — Tree-sitter for multi-language support
-- **Taint Analysis** — Track user input flow to dangerous sinks
-- **Data Flow Analysis** — Use-after-free, double-free detection
-- **Control Flow** — Race conditions, TOCTOU bugs
-- **Pattern Matching** — Known vuln patterns (SQL injection sinks, buffer overflows)
+- **AST Parsing** - Tree-sitter for multi-language support
+- **Taint Analysis** - Track user input flow to dangerous sinks
+- **Data Flow Analysis** - Use-after-free, double-free detection
+- **Control Flow** - Race conditions, TOCTOU bugs
+- **Pattern Matching** - Known vuln patterns (SQL injection sinks, buffer overflows)
 
 **Outputs:**
 - Suspicious code locations with severity score
@@ -96,11 +96,11 @@ Enterprise-grade autonomous vulnerability research platform that competes with c
 **Purpose:** Trigger crashes through intelligent mutation testing
 
 **Components:**
-- **AFL++ Integration** — Coverage-guided fuzzing
-- **libFuzzer** — In-process fuzzing for libraries
-- **Syzkaller** — Kernel fuzzing
-- **Corpus Management** — Minimize interesting inputs
-- **Crash Triage** — ASan/MSan/UBSan analysis
+- **AFL++ Integration** - Coverage-guided fuzzing
+- **libFuzzer** - In-process fuzzing for libraries
+- **Syzkaller** - Kernel fuzzing
+- **Corpus Management** - Minimize interesting inputs
+- **Crash Triage** - ASan/MSan/UBSan analysis
 
 **Intelligence Layer:**
 - LLM guides mutation strategy based on code structure
@@ -183,9 +183,9 @@ Hunt:  parse_header_v2(), parse_header_v3(), parse_*()
 **Purpose:** Safe execution and validation
 
 **Environment:**
-- **QEMU VMs** — OS-level isolation
-- **Firecracker** — Lightweight microVMs
-- **Docker** — Container isolation for web apps
+- **QEMU VMs** - OS-level isolation
+- **Firecracker** - Lightweight microVMs
+- **Docker** - Container isolation for web apps
 
 **Safety:**
 - Network isolation (no internet access)
@@ -239,27 +239,27 @@ similar_vulns (vuln_id, similar_vuln_id, similarity_score)
 
 ## Subscription Tiers
 
-### Starter — $99/month
+### Starter - $99/month
 - 10 scans/month
 - Web app scanning
 - Basic vuln detection
 - Community support
 
-### Pro — $499/month
+### Pro - $499/month
 - 100 scans/month
 - Source code audit
 - Exploit generation
 - Priority support
 - API access
 
-### Enterprise — $2,999/month
+### Enterprise - $2,999/month
 - Unlimited scans
 - Private deployment option
 - Custom integrations
 - Dedicated support
 - SLA guarantee
 
-### APT — $9,999/month
+### APT - $9,999/month
 - Full 0-day hunting
 - Advanced exploit chains
 - Kernel/firmware analysis
@@ -312,22 +312,22 @@ POST <customer_url>
 
 ### CI/CD Plugins
 
-- **GitHub Actions** — PR scanning
-- **GitLab CI** — Pipeline integration
-- **Jenkins** — Build-time scanning
-- **CircleCI** — Security gates
+- **GitHub Actions** - PR scanning
+- **GitLab CI** - Pipeline integration
+- **Jenkins** - Build-time scanning
+- **CircleCI** - Security gates
 
 ### Bug Bounty Platforms
 
-- **HackerOne** — Submit findings
-- **Bugcrowd** — Auto-reporting
-- **Intigriti** — Integration
+- **HackerOne** - Submit findings
+- **Bugcrowd** - Auto-reporting
+- **Intigriti** - Integration
 
 ### SIEM/Security Tools
 
-- **Splunk** — Event forwarding
-- **Datadog** — Metrics
-- **PagerDuty** — Alert routing
+- **Splunk** - Event forwarding
+- **Datadog** - Metrics
+- **PagerDuty** - Alert routing
 
 ---
 
@@ -351,9 +351,9 @@ POST <customer_url>
 
 ### Specialized Models
 
-- **Taint Analysis Model** — Predict data flow paths
-- **Exploit Ranker** — Score exploit reliability
-- **Chain Planner** — Multi-step reasoning for chains
+- **Taint Analysis Model** - Predict data flow paths
+- **Exploit Ranker** - Score exploit reliability
+- **Chain Planner** - Multi-step reasoning for chains
 
 ### Inference
 
@@ -374,17 +374,17 @@ POST <customer_url>
 
 ### Storage
 
-- **PostgreSQL** — Primary database (RDS/managed)
-- **S3/Object Storage** — Scan artifacts, crash dumps
-- **Redis** — Task queue, caching
-- **Elasticsearch** — Vuln search, code search
+- **PostgreSQL** - Primary database (RDS/managed)
+- **S3/Object Storage** - Scan artifacts, crash dumps
+- **Redis** - Task queue, caching
+- **Elasticsearch** - Vuln search, code search
 
 ### Security
 
-- **Network Isolation** — VPC, security groups
-- **Secrets Management** — Vault/AWS Secrets Manager
-- **Audit Logging** — All API calls logged
-- **Encryption** — At rest (S3, RDS), in transit (TLS)
+- **Network Isolation** - VPC, security groups
+- **Secrets Management** - Vault/AWS Secrets Manager
+- **Audit Logging** - All API calls logged
+- **Encryption** - At rest (S3, RDS), in transit (TLS)
 
 ---
 
@@ -497,5 +497,5 @@ POST <customer_url>
 
 ---
 
-**Status:** Architecture v1.0 — Ready for implementation
+**Status:** Architecture v1.0 - Ready for implementation
 **Last Updated:** 2026-06-07

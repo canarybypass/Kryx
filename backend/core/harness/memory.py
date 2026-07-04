@@ -1,5 +1,5 @@
 """
-AgentMemory — persistent memory для hunter агентов.
+AgentMemory - persistent memory для hunter агентов.
 Хранит всё что агент пробовал, нашёл, и что не сработало.
 Используется для adaptive replanning.
 """
@@ -20,7 +20,7 @@ class Observation:
 class AgentMemory:
     """
     Полная память агента за всю сессию охоты.
-    Передаётся в промпт на каждом шаге — агент всегда видит полный контекст.
+    Передаётся в промпт на каждом шаге - агент всегда видит полный контекст.
     """
     attack_class: str
     target: str
@@ -88,7 +88,7 @@ class AgentMemory:
         return "\n".join(parts)
 
     def should_replan(self) -> bool:
-        """Нужен ли replanning — слишком много пустых результатов подряд."""
+        """Нужен ли replanning - слишком много пустых результатов подряд."""
         if len(self.observations) < 2:
             return False
         last_two = self.observations[-2:]

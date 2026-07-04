@@ -1,5 +1,5 @@
 """
-Kryx local testbed — an INTENTIONALLY VULNERABLE web app for validating the
+Kryx local testbed - an INTENTIONALLY VULNERABLE web app for validating the
 engine end-to-end. Localhost only. Do NOT expose this to a network.
 
 Vulnerabilities planted (on purpose):
@@ -148,7 +148,7 @@ class Handler(BaseHTTPRequestHandler):
 
         elif u.path == "/dashboard":                       # AUTHENTICATED-only zone
             if "session=secret" not in self.headers.get("Cookie", ""):
-                self._send(401, "<h1>401 — login required</h1>")
+                self._send(401, "<h1>401 - login required</h1>")
                 return
             term = q.get("q", [""])[0]
             # reflected XSS reachable ONLY when authenticated
@@ -202,7 +202,7 @@ class Handler(BaseHTTPRequestHandler):
         elif u.path == "/user":                            # SQL injection
             uid = q.get("id", ["1"])[0]
             try:
-                # raw string interpolation — classic SQLi
+                # raw string interpolation - classic SQLi
                 cur = DB.execute(f"SELECT id,name,email FROM users WHERE id = {uid}")
                 rows = cur.fetchall()
                 out = "".join(f"<li>{html.escape(str(r))}</li>" for r in rows)

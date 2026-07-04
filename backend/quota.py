@@ -2,7 +2,7 @@
 Plan quota & budget protection for self-serve scans.
 
 Each plan tier maps to:
-  - which LLM model runs — cheap DeepSeek for low tiers, Opus for paid, so a
+  - which LLM model runs - cheap DeepSeek for low tiers, Opus for paid, so a
     single user (or abuser) can't burn the whole API budget;
   - how many scans per month;
   - how many scans may run at once.

@@ -1,5 +1,5 @@
 """
-Kryx unified scan pipeline — the SaaS entrypoint.
+Kryx unified scan pipeline - the SaaS entrypoint.
 
 `run_pipeline()` is the single entrypoint the SaaS API (api/routes.py) and the
 webhook integrations call. It dispatches each scan to the REAL engine for its
@@ -71,7 +71,7 @@ async def run_pipeline(target: str, target_type: str = "repo",
     """Dispatch a scan to the real engine for its target type, persist to the
     DB (when scan_id/db_session are given), and return a PipelineResult.
 
-    `model` pins the LLM for this scan (plan-tier gating) — async-safe, scoped
+    `model` pins the LLM for this scan (plan-tier gating) - async-safe, scoped
     to this task only."""
     if model:
         from utils.llm import set_model_override
@@ -141,7 +141,7 @@ async def _persist(db, scan_id: int, result: PipelineResult, findings: list, sta
 
 
 class SupervisorV2:
-    """Back-compat shim — delegates to run_pipeline (the real engines)."""
+    """Back-compat shim - delegates to run_pipeline (the real engines)."""
 
     def __init__(self, target: str, target_type: str = "repo",
                  scan_id: int | None = None, db_session=None, progress_cb=None):

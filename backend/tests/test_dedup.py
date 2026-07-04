@@ -1,7 +1,7 @@
 """
 Finding de-duplication / classification helpers. These guard the low-noise
 behavior: collapsing the same vuln on the same endpoint across sources, while
-keeping genuinely-distinct findings — including the nuclei keyword-first rule
+keeping genuinely-distinct findings - including the nuclei keyword-first rule
 that stops N .env templates from spamming the report.
 """
 from core.harness.supervisor import (

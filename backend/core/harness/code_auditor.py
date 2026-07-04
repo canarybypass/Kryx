@@ -1,5 +1,5 @@
 """
-Kryx Code Auditor — статический анализ исходного кода через LLM
+Kryx Code Auditor - статический анализ исходного кода через LLM
 Mythos-style: taint analysis + variant analysis по всей кодовой базе
 """
 import asyncio
@@ -24,7 +24,7 @@ SUPPORTED_EXTENSIONS = {
     ".java", ".rb", ".go", ".cs", ".cpp", ".c",
 }
 
-# Directories to skip — matched against path COMPONENTS, not substrings, so
+# Directories to skip - matched against path COMPONENTS, not substrings, so
 # "latest"/"testbed"/"test_foo.py" are NOT wrongly skipped (only real test/build dirs).
 SKIP_DIRS = {
     "node_modules", ".git", "__pycache__", "vendor", "dist", "build",
@@ -85,18 +85,18 @@ class CodeAuditor:
             "languages": result.language_stats,
         })
 
-        # Stage 1: Taint analysis — parallel across files
+        # Stage 1: Taint analysis - parallel across files
         await self._emit("status", "taint_analysis")
         findings = await self._run_taint_analysis(files)
 
-        # Stage 1b: Adversarial validation — drop false positives (intended
+        # Stage 1b: Adversarial validation - drop false positives (intended
         # CLI/tool behavior, sanitized paths, non-attacker-controlled sources).
         await self._emit("status", "validating")
         raw_count = len(findings)
         findings = await self._validate_findings(findings)
         await self._emit("validation", {"raw": raw_count, "kept": len(findings)})
 
-        # Stage 1c: deterministic scanners — semgrep (SAST) + gitleaks (secrets).
+        # Stage 1c: deterministic scanners - semgrep (SAST) + gitleaks (secrets).
         # Tool-confirmed (rule/signature match), so they bypass LLM validation and
         # add proven, low-false-positive findings alongside the reasoning pass.
         await self._emit("status", "static_scanners")
@@ -108,7 +108,7 @@ class CodeAuditor:
 
         await self._emit("findings", findings)
 
-        # Stage 2: Variant analysis — find similar patterns
+        # Stage 2: Variant analysis - find similar patterns
         if findings:
             await self._emit("status", "variant_analysis")
             variants = await self._run_variant_analysis(findings, files)
@@ -323,7 +323,7 @@ class CodeAuditor:
 
                 prompt = f"""File: {path}
 Language: {lang}
-Lines: {offset + 1}–{offset + len(chunk)}
+Lines: {offset + 1}-{offset + len(chunk)}
 
 ```{lang}
 {chunk_text}
@@ -606,7 +606,7 @@ Write the full professional code audit report in Russian markdown."""
                 "file": self._rel(lk.get("File", ""), code_dir),
                 "line": lk.get("StartLine"),
                 "description": lk.get("Description", "A secret/credential was committed to source."),
-                "evidence": f"rule={rule} match≈{masked}",  # redacted — never store the raw secret
+                "evidence": f"rule={rule} match≈{masked}",  # redacted - never store the raw secret
                 "recommendation": "Rotate this secret immediately and remove it from the source (and git history).",
                 "confidence": "high",
                 "source": "gitleaks",

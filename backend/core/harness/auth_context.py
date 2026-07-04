@@ -1,9 +1,9 @@
 """
-Kryx Auth Context — authenticated scanning.
+Kryx Auth Context - authenticated scanning.
 
 The user supplies a session cookie and/or auth headers (e.g. a bearer token).
 Set once per scan; every TARGET-facing request (crawler, detectors, sqlmap)
-sends them, so Kryx reaches and tests the authenticated surface — where the
+sends them, so Kryx reaches and tests the authenticated surface - where the
 high-value bugs live. External API calls (NVD/Shodan/LLM) must NOT use this.
 """
 import httpx

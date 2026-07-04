@@ -1,5 +1,5 @@
 """
-Kryx DB — SQLAlchemy async models + session factory
+Kryx DB - SQLAlchemy async models + session factory
 Enterprise-grade schema for 0-day hunting platform
 """
 import os

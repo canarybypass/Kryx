@@ -1,4 +1,4 @@
-# Kryx — go-to-market: первые сканы за кейсы
+# Kryx - go-to-market: первые сканы за кейсы
 
 Цель первой волны: **3-5 бесплатных сканов → 3-5 отзывов/кейсов → репутация → платящие.**
 Не продаём в лоб. Заходим с бесплатной пользой, получаем доказательства, которыми продаём дальше.
@@ -10,76 +10,76 @@
 
 ---
 
-## 1. Кого искать (ICP — идеальный клиент первой волны)
+## 1. Кого искать (ICP - идеальный клиент первой волны)
 
 - **Стартапы / небольшие SaaS** с публичным веб-приложением.
-- ~5–50 человек, **нет своего секьюрити-отдела**, но есть данные клиентов (страх взлома реальный).
-- **Решает один человек** — основатель / CTO / тех-лид (отвечает за день, не за квартал).
+- ~5-50 человек, **нет своего секьюрити-отдела**, но есть данные клиентов (страх взлома реальный).
+- **Решает один человек** - основатель / CTO / тех-лид (отвечает за день, не за квартал).
 - Не enterprise (там долго и нужны сертификаты, которых у нас пока нет).
 
 **Где брать (по 5-10 из каждого источника):**
-- Product Hunt — недавние запуски (у них свежий продукт, мало защиты)
+- Product Hunt - недавние запуски (у них свежий продукт, мало защиты)
 - Indie Hackers, BetaList, ProductRadar
 - Y Combinator startup directory (фильтр по свежим батчам)
-- LinkedIn — фильтр: компания 11–50 чел + SaaS/Fintech/E-com
+- LinkedIn - фильтр: компания 11-50 чел + SaaS/Fintech/E-com
 - RU/CIS: vc.ru (раздел стартапов), Habr Career, профильные Telegram-чаты
-- **Веб-студии/агентства** — позже (один контакт = поток клиентских сайтов)
+- **Веб-студии/агентства** - позже (один контакт = поток клиентских сайтов)
 
 Цель: **список из 20-30**, чтобы из них ответили 3-5.
 
 ---
 
-## 2. Холодный заход — EMAIL
+## 2. Холодный заход - EMAIL
 
 ### RU
 > **Тема:** нашёл, как укрепить безопасность {компания}
 >
 > Привет, {имя}!
 >
-> Я делаю Kryx — ИИ-агент, который находит уязвимости и **доказывает их эксплуатацией** (без «возможно» и ложных тревог), а потом пишет фикс.
+> Я делаю Kryx - ИИ-агент, который находит уязвимости и **доказывает их эксплуатацией** (без «возможно» и ложных тревог), а потом пишет фикс.
 >
-> Хочу набрать пару живых кейсов, поэтому предлагаю: **бесплатно прогоню {домен} и пришлю отчёт** из доказанных находок с готовыми фиксами. Без обязательств — отчёт твой в любом случае.
+> Хочу набрать пару живых кейсов, поэтому предлагаю: **бесплатно прогоню {домен} и пришлю отчёт** из доказанных находок с готовыми фиксами. Без обязательств - отчёт твой в любом случае.
 >
 > Вот как выглядит результат: https://xxxoff.github.io/report.html
 >
-> Если ок — ответь, и я попрошу подтвердить, что домен твой (сканю только с разрешения владельца). Прогон займёт у меня день.
+> Если ок - ответь, и я попрошу подтвердить, что домен твой (сканю только с разрешения владельца). Прогон займёт у меня день.
 >
-> — {ты}, @offsys
+> - {ты}, @offsys
 
 ### EN
 > **Subject:** a free security scan for {company}
 >
 > Hi {name},
 >
-> I build Kryx — an AI agent that finds vulnerabilities, **proves each one by execution** (no "maybes", near-zero false positives), and writes the fix.
+> I build Kryx - an AI agent that finds vulnerabilities, **proves each one by execution** (no "maybes", near-zero false positives), and writes the fix.
 >
-> I'm collecting a few real case studies, so here's the offer: **I'll scan {domain} for free and send you a report** of proven findings with ready fixes. No strings — the report is yours either way.
+> I'm collecting a few real case studies, so here's the offer: **I'll scan {domain} for free and send you a report** of proven findings with ready fixes. No strings - the report is yours either way.
 >
 > Here's what the output looks like: https://xxxoff.github.io/report.html
 >
 > If you're up for it, reply and I'll ask you to confirm you own the domain (I only scan with the owner's go-ahead). Takes me about a day.
 >
-> — {you}, @offsys
+> - {you}, @offsys
 
 ---
 
-## 3. Короткий заход — Telegram / DM / LinkedIn
+## 3. Короткий заход - Telegram / DM / LinkedIn
 
 ### RU
-> Привет, {имя}! Делаю ИИ-агента по безопасности (Kryx). Бесплатно прогоню {домен} и пришлю отчёт из **доказанных** находок + фиксы — собираю кейсы. Без обязательств. Пример отчёта: https://xxxoff.github.io/report.html — интересно?
+> Привет, {имя}! Делаю ИИ-агента по безопасности (Kryx). Бесплатно прогоню {домен} и пришлю отчёт из **доказанных** находок + фиксы - собираю кейсы. Без обязательств. Пример отчёта: https://xxxoff.github.io/report.html - интересно?
 
 ### EN
-> Hi {name} — I build an AI security agent (Kryx). Happy to scan {domain} **free** and send a report of proven findings + fixes (collecting case studies, no strings). Sample: https://xxxoff.github.io/report.html — want me to?
+> Hi {name} - I build an AI security agent (Kryx). Happy to scan {domain} **free** and send a report of proven findings + fixes (collecting case studies, no strings). Sample: https://xxxoff.github.io/report.html - want me to?
 
 ---
 
 ## 4. Фоллоу-ап (через 3-4 дня, если молчат)
 
 ### RU
-> Привет, {имя}! Поднимаю вверх — предложение бесплатного скана {домен} в силе. Если не актуально, без проблем, скажи — отстану 🙂
+> Привет, {имя}! Поднимаю вверх - предложение бесплатного скана {домен} в силе. Если не актуально, без проблем, скажи - отстану 🙂
 
 ### EN
-> Hey {name}, bumping this — the free scan offer for {domain} still stands. If it's not relevant, no worries, just say so 🙂
+> Hey {name}, bumping this - the free scan offer for {domain} still stands. If it's not relevant, no worries, just say so 🙂
 
 ---
 
@@ -94,7 +94,7 @@
 
 ---
 
-## 6. Трекер (заведи таблицу — Google Sheets / Notion)
+## 6. Трекер (заведи таблицу - Google Sheets / Notion)
 
 | Компания | Домен | Контакт (имя/роль) | Канал | Отправлено | Статус | Заметки |
 |----------|-------|--------------------|-------|------------|--------|---------|
@@ -106,5 +106,5 @@
 
 ## Правила, чтобы не обжечься
 - **Никогда не сканируй до подтверждения владения.** Гейт авторизации не пустит, но и сам не давай повода.
-- Не обещай того, чего движок не делает. «Доказанные находки» — да; «найдём всё» — нет.
-- Один ложняк в отчёте клиенту = удар по репутации. Если не уверен в находке — помечай honestly или убирай.
+- Не обещай того, чего движок не делает. «Доказанные находки» - да; «найдём всё» - нет.
+- Один ложняк в отчёте клиенту = удар по репутации. Если не уверен в находке - помечай honestly или убирай.

@@ -1,11 +1,11 @@
 """
-Kryx Crawl Stage — JS-aware attack-surface discovery.
+Kryx Crawl Stage - JS-aware attack-surface discovery.
 
 Modern apps (React/Angular/Vue) build their real endpoints with JavaScript, so
 a plain HTTP crawler sees only the skeleton. This crawler renders each page in a
 headless browser and captures:
   - links from the RENDERED DOM (after JS runs)
-  - network requests the app fires (XHR/fetch) — where the real API endpoints
+  - network requests the app fires (XHR/fetch) - where the real API endpoints
     and parameters live
   - forms (and turns GET forms into testable param endpoints)
 Static assets (images/css/js/fonts/media) are skipped so the budget goes to
@@ -26,7 +26,7 @@ def _is_asset(url: str) -> bool:
 
 def _parse_json_body(post_data: str) -> dict | None:
     """Return the JSON object an XHR POSTed, or None if it isn't a JSON object.
-    Only objects are usable — they give named fields to fuzz one at a time."""
+    Only objects are usable - they give named fields to fuzz one at a time."""
     if not post_data:
         return None
     try:
@@ -51,7 +51,7 @@ class CrawlStage:
         try:
             return await self._browser_crawl()
         except Exception as e:
-            # Browser unavailable — degrade gracefully to a plain HTTP crawl.
+            # Browser unavailable - degrade gracefully to a plain HTTP crawl.
             res = await self._http_crawl()
             res["note"] = f"JS crawl unavailable ({type(e).__name__}); used HTTP fallback."
             return res
@@ -85,7 +85,7 @@ class CrawlStage:
                     captured: list = []
                     def _on_req(req, _cap=captured):
                         # post_data raises UnicodeDecodeError on binary bodies
-                        # (gzip/protobuf) — we only want text/JSON, so swallow it.
+                        # (gzip/protobuf) - we only want text/JSON, so swallow it.
                         try:
                             post = req.post_data
                         except Exception:

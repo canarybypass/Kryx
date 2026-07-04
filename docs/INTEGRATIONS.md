@@ -11,9 +11,9 @@ Kryx integrates with external services via webhooks for automated security scann
 **Webhook URL:** `POST /api/webhooks/github/{org_id}`
 
 **Events:**
-- **Push** — Triggers scan on push to any branch
-- **Pull Request** — Scans PR on open/synchronize
-- **Release** — Scans on new release publish
+- **Push** - Triggers scan on push to any branch
+- **Pull Request** - Scans PR on open/synchronize
+- **Release** - Scans on new release publish
 
 **Setup:**
 1. Go to repo Settings → Webhooks → Add webhook
@@ -37,9 +37,9 @@ Kryx integrates with external services via webhooks for automated security scann
 **Webhook URL:** `POST /api/webhooks/gitlab/{org_id}`
 
 **Events:**
-- **Push Hook** — Scan on push
-- **Merge Request Hook** — Scan MR on open/update
-- **Tag Push Hook** — Scan on tag push
+- **Push Hook** - Scan on push
+- **Merge Request Hook** - Scan MR on open/update
+- **Tag Push Hook** - Scan on tag push
 
 **Setup:**
 1. Project Settings → Webhooks
@@ -79,10 +79,10 @@ Configure custom webhooks for any service.
 ```
 
 **Events:**
-- `scan.completed` — Scan finished
-- `scan.failed` — Scan error
-- `vuln.critical_found` — Critical vulnerability
-- `vuln.high_found` — High severity vuln
+- `scan.completed` - Scan finished
+- `scan.failed` - Scan error
+- `vuln.critical_found` - Critical vulnerability
+- `vuln.high_found` - High severity vuln
 
 **Payload Format:**
 ```json

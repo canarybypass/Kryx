@@ -1,5 +1,5 @@
 """
-Kryx LLM Client — unified interface to multiple LLM providers
+Kryx LLM Client - unified interface to multiple LLM providers
 """
 import os
 import asyncio
@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Per-scan model override (async-safe — each scan task has its own context).
+# Per-scan model override (async-safe - each scan task has its own context).
 # The SaaS layer sets this to gate the model by plan tier (cheap DeepSeek for
 # free/low tiers, Opus for paid) so one user can't burn the API budget.
 _model_override: ContextVar[str | None] = ContextVar("kryx_model_override", default=None)
@@ -51,8 +51,8 @@ class LLMClient:
         if not api_key:
             raise RuntimeError("OPENROUTER_API_KEY not set")
 
-        # Fallback models if the primary fails. Default to DeepSeek — a cheap
-        # BUT COHERENT model — not the free junk models we used pre-revenue:
+        # Fallback models if the primary fails. Default to DeepSeek - a cheap
+        # BUT COHERENT model - not the free junk models we used pre-revenue:
         # those emit garbled multilingual text (e.g. "Крабжа сессий") that
         # silently corrupted paid reports when the primary 402'd on low credit.
         # Set OPENROUTER_FALLBACKS="" to disable fallback and fail loudly.
@@ -76,7 +76,7 @@ class LLMClient:
                             ],
                             # Cap output tokens. Without this OpenRouter reserves
                             # the model's full context (e.g. 65k for Opus) and
-                            # rejects with 402 on a low balance — which then
+                            # rejects with 402 on a low balance - which then
                             # silently fell back to junk models. A sane cap lets
                             # the paid model actually run.
                             "max_tokens": int(os.getenv("OPENROUTER_MAX_TOKENS", "8000")),
@@ -110,7 +110,7 @@ class LLMClient:
                 except Exception as e:
                     last_err = f"{fb_model}: {type(e).__name__}: {str(e)[:120]}"
                     await asyncio.sleep(3)
-        raise RuntimeError(f"All models failed. Last error — {last_err}")
+        raise RuntimeError(f"All models failed. Last error - {last_err}")
 
     async def _groq(self, system: str, prompt: str, model: str) -> str:
         api_key = os.getenv("GROQ_API_KEY")
@@ -118,7 +118,7 @@ class LLMClient:
             raise RuntimeError("GROQ_API_KEY not set")
 
         # Groq is OpenAI-compatible. Generous free tier, no card. We don't
-        # force response_format (json) — the caller-side parser extracts JSON.
+        # force response_format (json) - the caller-side parser extracts JSON.
         last_err = "unknown"
         for attempt in range(4):
             try:
@@ -144,7 +144,7 @@ class LLMClient:
             except Exception as e:
                 last_err = f"{type(e).__name__}: {str(e)[:120]}"
                 await asyncio.sleep(2)
-        raise RuntimeError(f"Groq failed — {last_err}")
+        raise RuntimeError(f"Groq failed - {last_err}")
 
     async def _anthropic(self, system: str, prompt: str, model: str) -> str:
         api_key = os.getenv("ANTHROPIC_API_KEY")
@@ -198,7 +198,7 @@ def get_llm(model: str | None = None) -> LLMClient:
     global _llm
     effective = model or _model_override.get()
     if effective:
-        # per-context model (tier gating) — don't cache across tiers/scans
+        # per-context model (tier gating) - don't cache across tiers/scans
         return LLMClient(effective)
     if _llm is None:
         _llm = LLMClient(None)
