@@ -1,0 +1,73 @@
+<svg width="1280" height="560" viewBox="0 0 1280 560" fill="none" xmlns="http://www.w3.org/2000/svg" font-family="'JetBrains Mono','SF Mono',ui-monospace,Consolas,monospace">
+  <defs>
+    <linearGradient id="sbg" x1="0" y1="0" x2="0" y2="560" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0A0B0F"/><stop offset="1" stop-color="#08090C"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="560" fill="url(#sbg)"/>
+
+  <!-- terminal window -->
+  <g>
+    <rect x="40" y="36" width="1200" height="488" rx="14" fill="#0D0F14" stroke="#1C2029" stroke-width="1.5"/>
+    <!-- title bar -->
+    <rect x="40" y="36" width="1200" height="46" rx="14" fill="#12151B"/>
+    <rect x="40" y="68" width="1200" height="14" fill="#12151B"/>
+    <circle cx="66" cy="59" r="6" fill="#FF5F57"/>
+    <circle cx="88" cy="59" r="6" fill="#FEBC2E"/>
+    <circle cx="110" cy="59" r="6" fill="#28C840"/>
+    <text x="640" y="64" text-anchor="middle" font-size="13" fill="#5A616E">kryx  ·  engage</text>
+    <rect x="40" y="81" width="1200" height="1" fill="#1C2029"/>
+  </g>
+
+  <!-- body -->
+  <g font-size="15.5" transform="translate(70,118)">
+    <!-- command -->
+    <text fill="#525A67">$</text>
+    <text x="20" fill="#C8F135">kryx engage</text>
+    <text x="150" fill="#C6CCD6">--target https://shop.example.com --scope prod</text>
+
+    <!-- stages -->
+    <g transform="translate(0,40)"><text fill="#2DE2E6">recon</text><text x="90" fill="#8A92A0">resolved  ·  Node.js  ·  Express  ·  Postgres  ·  k8s ingress</text></g>
+    <g transform="translate(0,68)"><text fill="#2DE2E6">crawl</text><text x="90" fill="#8A92A0">58 endpoints  ·  24 params  ·  9 forms   (JS-aware)</text></g>
+    <g transform="translate(0,96)"><text fill="#2DE2E6">sweep</text><text x="90" fill="#8A92A0">48 detectors  x  every endpoint</text></g>
+
+    <line x1="0" y1="118" x2="1140" y2="118" stroke="#1C2029" stroke-width="1"/>
+
+    <!-- findings -->
+    <g transform="translate(0,146)" font-weight="600">
+      <rect x="-4" y="-16" width="56" height="22" rx="5" fill="#FF5C5C" fill-opacity="0.14"/>
+      <text x="6" fill="#FF6B6B">CRIT</text>
+      <text x="72" fill="#E6E9EE" font-weight="400">Command Injection</text>
+      <text x="300" fill="#7B8494" font-weight="400">/api/export?fmt=</text>
+      <text x="560" fill="#8A92A0" font-weight="400">shell returned  uid=1000(node)</text>
+    </g>
+    <g transform="translate(0,178)" font-weight="600">
+      <rect x="-4" y="-16" width="56" height="22" rx="5" fill="#FF5C5C" fill-opacity="0.14"/>
+      <text x="6" fill="#FF6B6B">CRIT</text>
+      <text x="72" fill="#E6E9EE" font-weight="400">SSRF to cloud metadata</text>
+      <text x="300" fill="#7B8494" font-weight="400">/api/fetch?url=</text>
+      <text x="560" fill="#8A92A0" font-weight="400">leaked AWS role credentials</text>
+    </g>
+    <g transform="translate(0,210)" font-weight="600">
+      <rect x="-4" y="-16" width="56" height="22" rx="5" fill="#F0A24E" fill-opacity="0.14"/>
+      <text x="6" fill="#F0A24E">HIGH</text>
+      <text x="72" fill="#E6E9EE" font-weight="400">IDOR / BOLA</text>
+      <text x="300" fill="#7B8494" font-weight="400">/api/orders/{id}</text>
+      <text x="560" fill="#8A92A0" font-weight="400">read any user's order</text>
+    </g>
+    <g transform="translate(0,242)" font-weight="600">
+      <rect x="-4" y="-16" width="56" height="22" rx="5" fill="#F0A24E" fill-opacity="0.14"/>
+      <text x="6" fill="#F0A24E">HIGH</text>
+      <text x="72" fill="#E6E9EE" font-weight="400">JWT alg=none accepted</text>
+      <text x="300" fill="#7B8494" font-weight="400">/session</text>
+      <text x="560" fill="#8A92A0" font-weight="400">token forgery, full takeover</text>
+    </g>
+
+    <line x1="0" y1="266" x2="1140" y2="266" stroke="#1C2029" stroke-width="1"/>
+
+    <!-- verify + report -->
+    <g transform="translate(0,294)"><text fill="#9B6DFF">debate</text><text x="90" fill="#8A92A0">attacker / defender / judge  ->  4 VALIDATED  ·  2 dropped as weak</text></g>
+    <g transform="translate(0,322)"><text fill="#FF6B6B">chains</text><text x="90" fill="#8A92A0">open-redirect  ->  SSRF  ->  metadata  ->  cloud account takeover</text></g>
+    <g transform="translate(0,350)"><text fill="#64D8A3">report</text><text x="90" fill="#C6CCD6">4 findings  ·  1 chain  ·  PoC + fix each  ·  false-positives ~0</text></g>
+  </g>
+</svg>

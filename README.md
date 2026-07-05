@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/banner.svg" alt="Kryx - autonomous offensive-security agent" width="100%">
+<img src="assets/hero.svg" alt="Kryx - autonomous offensive-security agent" width="100%">
 
 <br/>
 
@@ -15,6 +15,14 @@ Finds vulnerabilities, **proves** each one by execution, chains them to real imp
 across live web apps and source code. Reasoning where scanners are blind, low-noise where scanners are loud.
 
 </div>
+
+<img src="assets/scan.svg" alt="Kryx scan output" width="100%">
+
+---
+
+## The problem
+
+Scanners are loud and shallow: they flag *possible* issues and drown you in false positives, and they cannot reason about business logic. Manual pentesting is deep but slow and does not scale. Kryx sits in between - it reasons like a pentester and confirms like a scanner, so what lands in the report is small, real, and already proven.
 
 ---
 
@@ -31,7 +39,7 @@ across live web apps and source code. Reasoning where scanners are blind, low-no
 
 ## What it does
 
-<img src="assets/architecture.svg" alt="Kryx black-box pipeline" width="100%">
+<img src="assets/pipeline.svg" alt="Kryx black-box pipeline" width="100%">
 
 ### Black-box, live targets
 A deterministic pipeline maps the real attack surface and confirms every vuln with a tool, so findings are proven, not guessed:
@@ -96,6 +104,37 @@ Proof:    GET /api/spawn?command=id
 Impact:   arbitrary commands as the app user; pivot to cloud creds via SSRF
 Fix:      never pass user input to a shell; use execFile with a fixed argv allow-list
 ```
+
+---
+
+## How the debate works
+
+A finding does not reach you because one agent believed it. Every candidate goes through a short adversarial round:
+
+- **Attacker** states the vulnerability and the exact request that triggers it.
+- **Defender** attacks that claim - wrong context, sanitized sink, unreachable code, benign reflection.
+- **Judge** rules on the evidence and the tool result, and only a survivor is reported.
+
+This is the layer that kills the false positives scanners can't, and it is why a Kryx report is short.
+
+---
+
+## Design principles
+
+- **Proof or it doesn't ship.** No finding is reported without a tool reproducing it. A claim without a working proof is dropped, not downgraded.
+- **Non-destructive by default.** Aggressive and resource-exhaustion checks are bounded and off unless you explicitly opt in. Kryx is built to run against production without breaking it.
+- **Authorization first.** Every active scan passes a hard gate; unauthorized hosts are refused, and the gate is covered by tests.
+- **Reasoning on top of determinism.** A deterministic 48-detector sweep guarantees coverage; parallel LLM agents add the reasoning and the chains that turn findings into real impact.
+- **A fix with every finding.** Each report line ships a proof-of-concept and ready-to-apply remediation, not just a severity label.
+
+---
+
+## Where it fits
+
+- **Continuous testing** of your own apps and APIs between pentests.
+- **Pre-release gate** in CI - point it at a staging URL or a pull request.
+- **Bug-bounty and OSS auditing** within authorized scopes.
+- **Source-code review** on any repo or path, with taint analysis and fix code.
 
 ---
 
