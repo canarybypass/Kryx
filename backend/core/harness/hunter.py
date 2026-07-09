@@ -28,8 +28,8 @@ ATTACK_CLASSES = [
     },
     {
         "name": "auth_session",
-        "description": "Broken access control: IDOR/BOLA, auth bypass, JWT weaknesses (alg=none/weak secret), session fixation, host-header reset poisoning, NoSQL auth bypass, privilege escalation",
-        "tools": ["idor_probe", "jwt_probe", "host_header_probe", "nosql_probe", "http_probe", "dir_bruteforce", "browser_probe"],
+        "description": "Broken authentication & access control: login auth-bypass (SQL/NoSQL injection, default creds), username enumeration, IDOR/BOLA, JWT weaknesses (alg=none/weak secret), session fixation, host-header reset poisoning, privilege escalation. When a login/register form is in the attack surface, attack it with auth_bypass_probe and user_enum_probe first.",
+        "tools": ["auth_bypass_probe", "user_enum_probe", "idor_probe", "jwt_probe", "host_header_probe", "nosql_probe", "http_probe", "dir_bruteforce", "browser_probe"],
         "priority": "critical",
     },
     {

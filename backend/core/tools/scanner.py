@@ -208,6 +208,8 @@ async def run_tool(name: str, params: dict) -> dict:
         "smuggling_probe": probes_ext.smuggling_probe,
         "open_mgmt_probe": probes_ext.open_mgmt_probe,
         "resource_probe": probes_ext.resource_probe,
+        "auth_bypass_probe": probes_ext.auth_bypass_probe,
+        "user_enum_probe": probes_ext.user_enum_probe,
     }
 
     handler = handlers.get(name)
@@ -1757,4 +1759,10 @@ TOOLS_SCHEMA.extend([
     {"name": "resource_probe",
      "description": "NON-DESTRUCTIVE resource-exhaustion / unbounded-input detector for WRITE endpoints (POST/PUT). Sends a few bounded, escalating payloads (≤512KB, ≤4 reqs, early-stop - never floods) and flags a missing size limit (no 413), latency degradation, or state-change-despite-error. Use on write endpoints. Aggressive sizes need explicit consent env; findings are 'potential'.",
      "parameters": {"url": "string (write endpoint URL)", "method": "string (optional: POST|PUT, default POST)"}},
+    {"name": "auth_bypass_probe",
+     "description": "Attack a LOGIN endpoint directly: SQL/NoSQL auth-bypass injection ( ' OR '1'='1, {\"$ne\":null} ) and default credentials, diffed against an invalid-credential baseline. Pass the form/JSON login URL and (optional) the username/password field names. Confirms a real auth bypass by execution.",
+     "parameters": {"url": "string (login endpoint URL)", "user_field": "string (optional, default 'username')", "pass_field": "string (optional, default 'password')"}},
+    {"name": "user_enum_probe",
+     "description": "Username enumeration on a login/reset endpoint: compares the response for a likely-existing user (admin/test/root) vs a nonexistent one; a difference in status/size/error-wording leaks valid usernames. Pass the login URL and (optional) field names.",
+     "parameters": {"url": "string (login endpoint URL)", "user_field": "string (optional, default 'username')", "pass_field": "string (optional, default 'password')"}},
 ])

