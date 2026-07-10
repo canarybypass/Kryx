@@ -128,6 +128,21 @@ def _dedupe_findings(findings: list) -> list:
             f["affected_paths"] = paths
         out.append(f)
     return out
+
+
+def _merge_surface(surface: dict, extra: dict) -> int:
+    """Merge newly-discovered (authenticated) endpoints into the surface; return
+    the count of new endpoints added."""
+    known = {(e.get("path"), tuple(sorted(e.get("params", []))))
+             for e in surface.get("endpoints", [])}
+    added = 0
+    for e in extra.get("endpoints", []):
+        key = (e.get("path"), tuple(sorted(e.get("params", []))))
+        if key not in known:
+            surface.setdefault("endpoints", []).append(e)
+            known.add(key)
+            added += 1
+    return added
 from core.harness.recon import ReconStage
 from core.harness.crawler import CrawlStage
 from core.harness.sweep import SweepStage
@@ -204,6 +219,20 @@ class Supervisor:
             self.result.recon["memory"] = memory_context(mem)
             await self._emit("memory", {"scan_count": mem.get("scan_count"),
                                         "known_endpoints": len(mem.get("endpoints", []))})
+
+        # Stage 2b: Authentication - if the user did not supply a session, try to
+        # obtain one (login with provided creds, or opt-in auto-register), then
+        # re-crawl from inside. This unlocks the authenticated surface where the
+        # high-value bugs live - the difference between a scanner and a pentester.
+        if not is_authed():
+            from core.harness.authn import AuthnStage
+            authn = await AuthnStage(self.target, surface, self._emit).run()
+            if authn.get("authenticated"):
+                set_auth(authn.get("headers"), authn.get("cookies"))
+                await self._emit("auth", {"authenticated": True, "how": authn.get("how")})
+                authed_surface = await CrawlStage(self.target).run()
+                added = _merge_surface(surface, authed_surface)
+                await self._emit("crawl_authed", {"new_endpoints": added})
 
         self.result.recon["crawled_endpoints"] = [e["url"] for e in surface.get("endpoints", [])]
         await self._emit("crawl", {"endpoints": len(surface.get("endpoints", []))})
