@@ -158,9 +158,12 @@ class HunterStage:
             f"Recon data:\n{json.dumps(self.recon, indent=2, ensure_ascii=False)[:1500]}"
         )
 
-        max_steps = 8  # увеличили с 6 до 8
+        max_steps = 8       # productive, tool-executing steps
+        max_retry = 4       # extra turns for bad JSON / repeats - these must NOT
+        step = 0            # consume a real step (we were losing depth to one bad reply)
+        retry = 0
 
-        for step in range(max_steps):
+        while step < max_steps:
             # Build prompt with full memory
             memory_text = memory.to_prompt()
             replan_hint = memory.replan_hint() if memory.should_replan() else ""
@@ -182,7 +185,11 @@ class HunterStage:
             response = await llm.ask(system, prompt)
             parsed = _parse_json(response)
 
+            # Malformed reply -> retry without burning a step (bounded).
             if not parsed or not isinstance(parsed, dict):
+                retry += 1
+                if retry > max_retry:
+                    break
                 continue
 
             # Extract hypothesis if present
@@ -198,13 +205,18 @@ class HunterStage:
                 return findings
 
             if not action:
+                retry += 1
+                if retry > max_retry:
+                    break
                 continue
 
-            # Skip if already tried exact same call
+            # Skip if already tried exact same call - nudge, don't waste the step.
             params = parsed.get("params", {})
             if memory.already_tried(action, params):
-                # Force agent to try something else next step
                 memory.failed_tools.append(action)
+                retry += 1
+                if retry > max_retry:
+                    break
                 continue
 
             # Execute tool
@@ -225,6 +237,7 @@ class HunterStage:
                     "thought": parsed.get("thought", ""),
                     "useful": memory.observations[-1].useful,
                 })
+            step += 1
 
         # Timeout - return whatever findings memory has
         return memory.findings

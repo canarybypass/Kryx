@@ -2,7 +2,8 @@
 Kryx Supervisor - главный оркестратор многоагентной системы
 """
 import re
-from urllib.parse import urlparse
+import json
+from urllib.parse import urlparse, parse_qs
 from dataclasses import dataclass, field
 
 
@@ -67,15 +68,50 @@ def _clean_name(s: str) -> str:
 # both surviving as separate "secret" findings.
 _SITE_LEVEL_TYPES = {"secret", "headers", "cors", "outdated"}
 
+# Reflected-input bugs where the SAME parameter reflected across many pages is ONE
+# bug (e.g. a site-wide ?query= search reflected on every page). Collapse by param,
+# not by path, so one XSS isn't reported N times.
+_REFLECTED_PARAM_TYPES = {"xss"}
+
+
+def _injected_param(f: dict) -> str:
+    """The user-controlled parameter a reflected finding was proven through, so the
+    same param reflected on many endpoints collapses into one finding."""
+    q = urlparse(f.get("url", "")).query
+    if q:
+        keys = list(parse_qs(q, keep_blank_values=True).keys())
+        if keys:
+            return keys[0].lower()
+    ev = f.get("evidence", "")
+    if not isinstance(ev, str):
+        try:
+            ev = json.dumps(ev, ensure_ascii=False)
+        except Exception:
+            ev = str(ev)
+    m = re.search(r"(?:param|form)[^A-Za-z]*'?\[?'?([A-Za-z_][\w]*)", ev)
+    return m.group(1).lower() if m else ""
+
 
 def _dedupe_findings(findings: list) -> list:
-    """Collapse the same vuln TYPE on the same endpoint across sources,
-    preferring tool-confirmed (sweep/logic), then higher severity."""
+    """Collapse the same vuln TYPE on the same endpoint across sources, preferring
+    tool-confirmed (sweep/logic), then higher severity. Reflected bugs on the same
+    parameter collapse across paths (one param = one bug, with affected paths)."""
     best: dict = {}
+    aff: dict = {}
     for f in findings:
         f["name"] = _clean_name(f.get("name", ""))
         vt = _vuln_type(f)
-        key = (vt, "" if vt in _SITE_LEVEL_TYPES else _finding_path(f))
+        param = _injected_param(f) if vt in _REFLECTED_PARAM_TYPES else ""
+        if param:
+            key = (vt, "param:" + param)
+        elif vt in _SITE_LEVEL_TYPES:
+            key = (vt, "")
+        else:
+            key = (vt, _finding_path(f))
+        p = _finding_path(f) or "/"
+        aff.setdefault(key, [])
+        if p not in aff[key]:
+            aff[key].append(p)
         cur = best.get(key)
         if cur is None:
             best[key] = f
@@ -84,7 +120,14 @@ def _dedupe_findings(findings: list) -> list:
         cur_pref = (cur.get("source") in ("sweep", "logic"), _SEV_RANK.get(cur.get("severity"), 0))
         if pref > cur_pref:
             best[key] = f
-    return list(best.values())
+    # record the spread when one bug hit several endpoints
+    out = []
+    for key, f in best.items():
+        paths = aff.get(key, [])
+        if len(paths) > 1:
+            f["affected_paths"] = paths
+        out.append(f)
+    return out
 from core.harness.recon import ReconStage
 from core.harness.crawler import CrawlStage
 from core.harness.sweep import SweepStage

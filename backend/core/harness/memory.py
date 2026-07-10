@@ -120,6 +120,11 @@ class AgentMemory:
     def _is_useful(result: dict) -> bool:
         if "error" in result:
             return False
+        # Standard probe contract {"vulnerable": bool, "findings": [...]}: a clean
+        # negative (not vulnerable, nothing found) is NOT useful - so two of them in
+        # a row correctly trigger replanning instead of looking like progress.
+        if result.get("vulnerable") is False and not result.get("findings"):
+            return False
         # Empty results
         if result.get("open_ports") == [] and result.get("findings") == []:
             return False
